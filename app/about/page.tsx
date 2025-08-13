@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ExternalLink, Sparkles, Award, Users, MapPin, Calendar } from 'lucide-react';
+import { ArrowRight, ExternalLink, Zap, Settings, Users, MapPin, Calendar, Wrench } from 'lucide-react';
 
 const AboutPage = () => {
   const [scrollY, setScrollY] = useState(0);
@@ -40,68 +40,90 @@ const AboutPage = () => {
 
   const stats = [
     { value: "2020", label: "Established", icon: Calendar },
-    { value: "3 & Y", label: "Model Focus", icon: Award },
-    { value: "2017-25", label: "Coverage", icon: Users },
-    { value: "BC", label: "Kamloops", icon: MapPin }
+    { value: "Model 3 & Y", label: "Specialization", icon: Zap },
+    { value: "2017-2025", label: "Coverage", icon: Settings },
+    { value: "Kamloops, BC", label: "Location", icon: MapPin }
   ];
 
   return (
-    <main>
+    <main className="bg-white">
       {/* Hero Section */}
-      <section className="relative py-32 overflow-hidden">
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 opacity-30">
-          <div 
-            className="absolute top-20 left-1/4 w-96 h-96 bg-gradient-to-r from-emerald-400/20 to-cyan-400/20 rounded-full blur-3xl animate-pulse"
-            style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-          ></div>
-          <div 
-            className="absolute bottom-20 right-1/4 w-80 h-80 bg-gradient-to-r from-blue-400/20 to-indigo-400/20 rounded-full blur-3xl animate-pulse delay-1000"
-            style={{ transform: `translateY(${scrollY * -0.1}px)` }}
-          ></div>
+      <section className="relative bg-gradient-to-b from-slate-50 to-white py-24">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='none' fill-rule='evenodd'%3e%3cg fill='%23000000' fill-opacity='1'%3e%3ccircle cx='7' cy='7' r='1'/%3e%3c/g%3e%3c/g%3e%3c/svg%3e")`,
+          }}></div>
         </div>
         
-        <div className="relative max-w-6xl mx-auto px-6 lg:px-8 text-center">
-          <div className="space-y-8">
-            <div className="flex items-center justify-center space-x-2 text-emerald-600 mb-6">
-              <Sparkles className="h-5 w-5" />
-              <span className="text-sm font-medium tracking-wider uppercase">Since 2020</span>
-              <Sparkles className="h-5 w-5" />
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <div className="inline-flex items-center px-4 py-2 bg-red-50 border border-red-200 rounded-full text-red-700 text-sm font-medium mb-8">
+                
+                Tesla Specialist Since 2020
+              </div>
+              
+              <h1 className="text-5xl lg:text-6xl font-bold text-slate-900 leading-tight mb-6">
+                The EV Store
+                <span className="block text-3xl lg:text-4xl font-normal text-slate-600 mt-2">
+                  Tesla Parts & Service Excellence
+                </span>
+              </h1>
+              
+              <p className="text-xl text-slate-600 leading-relaxed mb-8">
+                Professional-grade Tesla Model 3 and Y components with expert installation services. 
+                Serving Kamloops with precision engineering and uncompromising quality standards.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button className="bg-slate-900 text-white px-8 py-4 rounded-lg font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center group">
+                  Browse Parts Catalog
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button className="border border-slate-300 text-slate-700 px-8 py-4 rounded-lg font-semibold hover:bg-slate-50 transition-colors">
+                  Schedule Service
+                </button>
+              </div>
             </div>
             
-            <h1 className="text-6xl md:text-8xl font-extralight tracking-tight text-slate-900 leading-none">
-              <span className="block">Precision</span>
-              <span className="block bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 bg-clip-text text-transparent font-light">
-                Engineering
-              </span>
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-slate-600 max-w-4xl mx-auto leading-relaxed font-light">
-              Specializing in Tesla Model 3 and Y components since 2020. 
-              <br className="hidden md:block" />
-              <span className="text-slate-400">Where precision meets performance in Kamloops, BC.</span>
-            </p>
-            
-            <div className="pt-12">
-              <div className="w-24 h-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 mx-auto"></div>
+            <div className="relative">
+              <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl p-8 h-96 flex items-center justify-center">
+                <div className="text-center">
+                  <Wrench className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-500 font-medium">Tesla Model 3 & Y</p>
+                  <p className="text-slate-400">Professional Service</p>
+                </div>
+              </div>
+              {/* Floating elements */}
+              <div className="absolute -top-6 -right-6 bg-white shadow-lg rounded-xl p-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-slate-700">Certified Parts</span>
+                </div>
+              </div>
+              <div className="absolute -bottom-6 -left-6 bg-white shadow-lg rounded-xl p-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-slate-700">Expert Installation</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-white/60 backdrop-blur-sm border-y border-slate-200/60">
-        <div className="max-w-6xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="py-20 border-y border-slate-200 bg-white">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center group">
-                <div className="relative inline-block mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-cyan-100 rounded-2xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-300">
-                    <stat.icon className="h-8 w-8 text-emerald-600" />
-                  </div>
+              <div key={index} className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-100 rounded-lg mb-4">
+                  <stat.icon className="h-6 w-6 text-slate-600" />
                 </div>
-                <div className="text-3xl md:text-4xl font-extralight text-slate-900 mb-2">{stat.value}</div>
-                <div className="text-sm uppercase tracking-wider text-slate-500 font-medium">{stat.label}</div>
+                <div className="text-2xl lg:text-3xl font-bold text-slate-900 mb-2">{stat.value}</div>
+                <div className="text-sm text-slate-600 font-medium">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -109,74 +131,98 @@ const AboutPage = () => {
       </section>
 
       {/* Services Section */}
-      <section className="py-24">
-        <div className="max-w-6xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-extralight text-slate-900 mb-4 tracking-tight">
-              Our Expertise
+      <section className="py-24 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-slate-900 mb-4">
+              Professional Tesla Solutions
             </h2>
-            <div className="w-24 h-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 mx-auto mb-6"></div>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto font-light">
-              Comprehensive Tesla solutions from precision parts to complete vehicles
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              Complete parts catalog and professional services for Tesla Model 3 and Y vehicles
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12">
             {/* Tesla Parts & Service */}
-            <div className="group relative bg-white rounded-2xl p-10 shadow-sm hover:shadow-xl transition-all duration-500 border border-slate-100 hover:border-slate-200 hover:-translate-y-2">
-              <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <ArrowRight className="h-5 w-5 text-emerald-500" />
+            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-14 h-14 bg-slate-900 rounded-xl flex items-center justify-center">
+                  <Settings className="h-7 w-7 text-white" />
+                </div>
+                <ArrowRight className="h-5 w-5 text-slate-400" />
               </div>
               
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300">
-                <Sparkles className="h-8 w-8 text-emerald-600" />
-              </div>
-              
-              <h3 className="text-2xl font-light text-slate-900 mb-6 group-hover:text-emerald-600 transition-colors duration-300">
+              <h3 className="text-2xl font-bold text-slate-900 mb-4">
                 Tesla Parts & Service
               </h3>
               
-              <p className="text-slate-600 leading-relaxed mb-8 font-light">
-                Premium OEM and aftermarket components for Tesla Model 3 and Y (2017-2025). 
-                Expert installation and maintenance by certified technicians who understand 
-                the precision these vehicles demand.
+              <p className="text-slate-600 leading-relaxed mb-6">
+                OEM and high-performance aftermarket components for Tesla Model 3 and Y (2017-2025). 
+                Professional installation by certified technicians with Tesla-specific diagnostic equipment.
               </p>
+
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  OEM Tesla replacement parts
+                </li>
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  Performance upgrades & modifications
+                </li>
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  Professional installation service
+                </li>
+              </ul>
               
-              <a href="/" className="inline-flex items-center text-emerald-600 font-medium hover:text-emerald-700 transition-colors group/link">
-                Explore Parts
-                <ArrowRight className="ml-2 h-4 w-4 group-hover/link:translate-x-1 transition-transform duration-300" />
-              </a>
+              <button className="text-slate-900 font-semibold hover:text-slate-700 transition-colors inline-flex items-center">
+                View Parts Catalog
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
             </div>
 
             {/* Vehicle Sales */}
-            <div className="group relative bg-white rounded-2xl p-10 shadow-sm hover:shadow-xl transition-all duration-500 border border-slate-100 hover:border-slate-200 hover:-translate-y-2">
-              <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <ExternalLink className="h-5 w-5 text-cyan-500" />
+            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-14 h-14 bg-red-600 rounded-xl flex items-center justify-center">
+                  <Zap className="h-7 w-7 text-white" />
+                </div>
+                <ExternalLink className="h-5 w-5 text-slate-400" />
               </div>
               
-              <div className="w-16 h-16 bg-gradient-to-br from-cyan-100 to-cyan-50 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300">
-                <Award className="h-8 w-8 text-cyan-600" />
-              </div>
-              
-              <h3 className="text-2xl font-light text-slate-900 mb-6 group-hover:text-cyan-600 transition-colors duration-300">
-                Vehicle Sales
+              <h3 className="text-2xl font-bold text-slate-900 mb-4">
+                Tesla Vehicle Sales
               </h3>
               
-              <p className="text-slate-600 leading-relaxed mb-8 font-light">
-                Curated Tesla vehicles available at{' '}
-                <span className="text-slate-900 font-medium">cars.theevstore.ca</span>. 
-                Each vehicle undergoes comprehensive inspection to meet our exacting standards 
-                for quality and performance.
+              <p className="text-slate-600 leading-relaxed mb-6">
+                Certified pre-owned Tesla vehicles available at cars.theevstore.ca. 
+                Each vehicle undergoes comprehensive multi-point inspection and comes with detailed service history.
               </p>
+
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  Certified pre-owned Tesla vehicles
+                </li>
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  Comprehensive vehicle inspection
+                </li>
+                <li className="flex items-center text-slate-600">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full mr-3"></div>
+                  Complete service documentation
+                </li>
+              </ul>
               
               <a 
                 href="https://cars.theevstore.ca" 
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-cyan-600 font-medium hover:text-cyan-700 transition-colors group/link"
+                className="text-red-600 font-semibold hover:text-red-700 transition-colors inline-flex items-center"
               >
-                Browse Inventory
-                <ExternalLink className="ml-2 h-4 w-4 group-hover/link:scale-110 transition-transform duration-300" />
+                Browse Vehicle Inventory
+                <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </div>
           </div>
@@ -184,39 +230,35 @@ const AboutPage = () => {
       </section>
 
       {/* Company Portfolio */}
-      <section className="py-24 bg-white/60 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-extralight text-slate-900 mb-4 tracking-tight">
-              Business Family
+      <section className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-slate-900 mb-4">
+              Our Business Network
             </h2>
-            <div className="w-24 h-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 mx-auto mb-6"></div>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto font-light">
-              Part of a diversified portfolio serving Kamloops with excellence
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              Part of a diverse portfolio of companies serving Kamloops with professional excellence
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8">
             {companies.map((company, index) => (
               <div 
                 key={company.name}
-                className="group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-500 border border-slate-100 hover:border-slate-200 hover:-translate-y-1"
+                className="border border-slate-200 rounded-xl p-6 hover:shadow-md transition-all hover:border-slate-300"
               >
-                <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full">
+                    {company.category}
+                  </div>
                   <ExternalLink className="h-4 w-4 text-slate-400" />
                 </div>
                 
-                <div className="mb-4">
-                  <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-medium">
-                    {company.category}
-                  </span>
-                </div>
-                
-                <h3 className="text-xl font-medium text-slate-900 mb-4 group-hover:text-emerald-600 transition-colors duration-300">
+                <h3 className="text-xl font-bold text-slate-900 mb-3">
                   {company.name}
                 </h3>
                 
-                <p className="text-slate-600 mb-6 leading-relaxed font-light">
+                <p className="text-slate-600 mb-4 leading-relaxed">
                   {company.description}
                 </p>
                 
@@ -224,10 +266,10 @@ const AboutPage = () => {
                   href={`https://${company.url}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-slate-500 hover:text-slate-700 text-sm transition-colors group/link"
+                  className="text-slate-500 hover:text-slate-700 text-sm transition-colors inline-flex items-center font-medium"
                 >
                   {company.url}
-                  <ExternalLink className="ml-2 h-3 w-3 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform duration-300" />
+                  <ExternalLink className="ml-2 h-3 w-3" />
                 </a>
               </div>
             ))}
@@ -236,43 +278,38 @@ const AboutPage = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-24">
+      <section className="py-24 bg-slate-900 text-white">
         <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
-          <div className="space-y-8">
-            <div className="flex items-center justify-center space-x-2 text-emerald-600 mb-6">
-              <Sparkles className="h-5 w-5" />
-              <span className="text-sm font-medium tracking-wider uppercase">Experience Excellence</span>
-              <Sparkles className="h-5 w-5" />
-            </div>
+          <h2 className="text-4xl lg:text-5xl font-bold mb-6">
+            Ready to Enhance Your Tesla?
+          </h2>
+          
+          <p className="text-xl text-slate-300 mb-12 max-w-3xl mx-auto">
+            Professional Tesla parts and service in Kamloops, BC. Quality components, expert installation, 
+            and exceptional customer service.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button className="bg-white text-slate-900 px-8 py-4 rounded-lg font-bold hover:bg-slate-100 transition-colors inline-flex items-center justify-center group">
+              Shop Tesla Parts
+              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            </button>
             
-            <h2 className="text-4xl md:text-5xl font-extralight text-slate-900 mb-6 tracking-tight">
-              Discover Precision
-            </h2>
-            
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-light">
-              Why Tesla owners choose The EV Store for premium parts, expert service, and quality vehicles.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-              <a 
-                href="/"
-                className="group relative overflow-hidden px-8 py-4 bg-slate-900 text-white font-medium rounded-full hover:bg-slate-800 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-slate-900/25"
-              >
-                <span className="relative z-10 flex items-center justify-center">
-                  Shop Tesla Parts
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
-                </span>
-              </a>
-              
-              <a 
-                href="https://cars.theevstore.ca"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-8 py-4 border border-slate-300 text-slate-700 font-medium rounded-full hover:border-slate-400 hover:bg-slate-50 transition-all duration-300 inline-flex items-center justify-center"
-              >
-                Browse Vehicles
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </a>
+            <a 
+              href="https://cars.theevstore.ca"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border border-slate-600 text-white px-8 py-4 rounded-lg font-bold hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
+            >
+              Browse Vehicles
+              <ExternalLink className="ml-2 h-5 w-5" />
+            </a>
+          </div>
+
+          <div className="mt-16 pt-8 border-t border-slate-800">
+            <div className="flex flex-col sm:flex-row items-center justify-between text-slate-400 text-sm">
+              <p>© 2025 The EV Store. Professional Tesla solutions in Kamloops, BC.</p>
+              <p className="mt-2 sm:mt-0">Serving Tesla Model 3 & Y since 2020</p>
             </div>
           </div>
         </div>

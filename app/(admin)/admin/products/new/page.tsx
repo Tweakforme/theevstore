@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,9 +22,17 @@ const productSchema = z.object({
 
 type ProductFormData = z.infer<typeof productSchema>;
 
+interface Category {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 export default function AddProductPage() {
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   const {
     register,
@@ -40,6 +48,29 @@ export default function AddProductPage() {
   });
 
   const compatibleModels = watch("compatibleModels");
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      const data = await response.json();
+      
+      // Filter only active categories and sort by name
+      const activeCategories = data
+        .filter((cat: Category) => cat.isActive)
+        .sort((a: Category, b: Category) => a.name.localeCompare(b.name));
+      
+      setCategories(activeCategories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   // Handle image upload (we'll implement this with UploadThing later)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +99,9 @@ export default function AddProductPage() {
 
   const onSubmit = async (data: ProductFormData) => {
     try {
+      // Find the selected category to get its ID
+      const selectedCategory = categories.find(cat => cat.id === data.category);
+      
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
@@ -75,6 +109,7 @@ export default function AddProductPage() {
         },
         body: JSON.stringify({
           ...data,
+          categoryId: data.category, // This is now the category ID
           images: images, // Include uploaded images
         }),
       });
@@ -101,7 +136,7 @@ export default function AddProductPage() {
         <p className="text-gray-600">Add a new Tesla part to your inventory</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <div onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         {/* Product Images */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Product Images</h3>
@@ -206,22 +241,39 @@ export default function AddProductPage() {
               {errors.stockQuantity && <p className="text-red-500 text-sm mt-1">{errors.stockQuantity.message}</p>}
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Category *
               </label>
-              <select
-                {...register("category")}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select a category</option>
-                <option value="interior">Interior</option>
-                <option value="exterior">Exterior</option>
-                <option value="performance">Performance</option>
-                <option value="charging">Charging</option>
-                <option value="accessories">Accessories</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
+              {loadingCategories ? (
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                  Loading categories...
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="space-y-2">
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-yellow-50 text-yellow-700">
+                    No categories available. Create categories first.
+                  </div>
+                  <a 
+                    href="/admin/categories" 
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    Go to Category Management →
+                  </a>
+                </div>
+              ) : (
+                <select
+                  {...register("category")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>}
             </div>
 
@@ -235,6 +287,18 @@ export default function AddProductPage() {
                 step="0.01"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="0.5"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dimensions
+              </label>
+              <input
+                {...register("dimensions")}
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="25x15x5cm"
               />
             </div>
           </div>
@@ -299,20 +363,22 @@ export default function AddProductPage() {
         <div className="flex justify-end space-x-4">
           <button
             type="button"
+            onClick={() => window.history.back()}
             className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Cancel
           </button>
           <button
-            type="submit"
-            disabled={isSubmitting}
+            type="button"
+            onClick={handleSubmit(onSubmit)}
+            disabled={isSubmitting || categories.length === 0}
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
           >
             <Save className="w-4 h-4" />
             <span>{isSubmitting ? "Saving..." : "Save Product"}</span>
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

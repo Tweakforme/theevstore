@@ -66,6 +66,12 @@ model Category {
   sortOrder   Int       @default(0)
   isActive    Boolean   @default(true)
   
+  // NEW: Parent-child relationship fields
+  parentId    String?   // Points to parent category
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  level       Int       @default(1) // 1=Model 3, 2=Model 3 - BODY, 3=M3 1001 - Bumper
+  
   products    Product[]
   
   createdAt   DateTime  @default(now())

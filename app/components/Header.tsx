@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @next/next/no-html-link-for-pages */
 "use client";
 import React, { useState } from 'react';
 import { Search, ShoppingBag, User, Menu, X } from 'lucide-react';
@@ -13,29 +16,13 @@ const Header = () => {
           {/* Logo */}
           <div className="flex items-center group cursor-pointer">
             <a href="/" className="relative">
-              <svg width="180" height="45" viewBox="0 0 400 100" className="transition-all duration-300 group-hover:scale-105">
-                <defs>
-                  <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#059669" />
-                    <stop offset="100%" stopColor="#10b981" />
-                  </linearGradient>
-                  <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#0891b2" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-                
-                <path d="M75 18 Q88 12 105 18 L118 25 L125 32 L118 39 L105 46 Q88 52 75 46 Z" fill="url(#greenGradient)" className="drop-shadow-sm"/>
-                <rect x="120" y="28" width="10" height="5" fill="url(#greenGradient)"/>
-                <rect x="120" y="35" width="10" height="5" fill="url(#greenGradient)"/>
-                <path d="M15 65 Q45 15 85 28 Q125 38 145 65 Q125 52 85 42 Q45 32 15 65 Z" fill="url(#greenGradient)"/>
-                <path d="M145 25 Q210 5 290 18 Q370 28 385 52 Q350 38 290 32 Q210 26 145 25 Z" fill="url(#blueGradient)"/>
-                <path d="M385 52 Q365 46 345 52 Q325 58 305 65 Q285 72 265 78 L385 78 Z" fill="url(#blueGradient)"/>
-                
-                <text x="115" y="78" fontFamily="system-ui" fontWeight="800" fontSize="26" fill="#0f172a" className="select-none">THE</text>
-                <text x="165" y="78" fontFamily="system-ui" fontWeight="800" fontSize="30" fill="#0f172a" className="select-none">EV</text>
-                <text x="210" y="78" fontFamily="system-ui" fontWeight="800" fontSize="30" fill="#0f172a" className="select-none">STORE</text>
-              </svg>
+              <img 
+                src="/images/logo.png" 
+                alt="The EV Store"
+                width={180}
+                height={45}
+                className="h-12 w-auto transition-all duration-300 group-hover:scale-105"
+              />
             </a>
           </div>
 
@@ -78,11 +65,11 @@ const Header = () => {
                 <Search className="h-5 w-5 text-slate-500 group-hover:text-slate-700" />
               </div>
             </div>
-            <div className="relative group cursor-pointer">
+            <a href="/auth/login" className="relative group cursor-pointer">
               <div className="p-2 rounded-full hover:bg-slate-100 transition-all duration-300">
                 <User className="h-5 w-5 text-slate-500 group-hover:text-slate-700" />
               </div>
-            </div>
+            </a>
             <div className="relative group cursor-pointer">
               <div className="p-2 rounded-full hover:bg-slate-100 transition-all duration-300">
                 <ShoppingBag className="h-5 w-5 text-slate-500 group-hover:text-slate-700" />
@@ -110,6 +97,7 @@ const Header = () => {
               <a href="#" className="block text-slate-600 hover:text-slate-900 font-medium text-lg">Accessories</a>
               <a href="/about" className="block text-slate-600 hover:text-slate-900 font-medium text-lg">About Us</a>
               <a href="#" className="block text-slate-600 hover:text-slate-900 font-medium text-lg">Support</a>
+              <a href="/auth/login" className="block text-slate-600 hover:text-slate-900 font-medium text-lg">Sign In</a>
             </div>
           </div>
         )}

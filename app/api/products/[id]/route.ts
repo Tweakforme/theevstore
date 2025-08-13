@@ -13,7 +13,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const productId = params.id;
+    const productId = (await params).id;
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -56,7 +56,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const productId = params.id;
+    const productId = (await params).id;
 
     // Check if product exists
     const existingProduct = await prisma.product.findUnique({
@@ -235,7 +235,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const productId = params.id;
+    const productId = (await params).id;
 
     // First delete related images
     await prisma.productImage.deleteMany({

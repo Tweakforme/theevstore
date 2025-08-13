@@ -6,17 +6,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="md:col-span-2 space-y-6">
-            <svg width="160" height="40" viewBox="0 0 400 100">
-              <path d="M75 18 Q88 12 105 18 L118 25 L125 32 L118 39 L105 46 Q88 52 75 46 Z" fill="#10b981"/>
-              <rect x="120" y="28" width="10" height="5" fill="#10b981"/>
-              <rect x="120" y="35" width="10" height="5" fill="#10b981"/>
-              <path d="M15 65 Q45 15 85 28 Q125 38 145 65 Q125 52 85 42 Q45 32 15 65 Z" fill="#10b981"/>
-              <path d="M145 25 Q210 5 290 18 Q370 28 385 52 Q350 38 290 32 Q210 26 145 25 Z" fill="#06b6d4"/>
-              <path d="M385 52 Q365 46 345 52 Q325 58 305 65 Q285 72 265 78 L385 78 Z" fill="#06b6d4"/>
-              <text x="115" y="78" fontFamily="system-ui" fontWeight="800" fontSize="26" fill="white">THE</text>
-              <text x="165" y="78" fontFamily="system-ui" fontWeight="800" fontSize="30" fill="white">EV</text>
-              <text x="210" y="78" fontFamily="system-ui" fontWeight="800" fontSize="30" fill="white">STORE</text>
-            </svg>
+            <img src="/images/logo.png" alt="The EV Store" className="h-12 w-auto" />
             <p className="text-slate-300 text-lg leading-relaxed max-w-md font-light">
               Elevating Tesla ownership through precision-engineered components and uncompromising quality.
             </p>

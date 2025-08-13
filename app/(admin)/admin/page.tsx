@@ -1,7 +1,29 @@
+"use client";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { Package, Users, ShoppingCart, TrendingUp } from "lucide-react";
 
 export default function AdminDashboard() {
+  const { data: session, status } = useSession();
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  // This should be handled by layout, but just in case
+  if (!session || session.user?.role !== "ADMIN") {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">Access denied. Admin privileges required.</p>
+      </div>
+    );
+  }
+
   // These will be real data from your database later
   const stats = {
     totalProducts: 0,
@@ -14,7 +36,7 @@ export default function AdminDashboard() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome to your Tesla parts store admin panel</p>
+        <p className="text-gray-600">Welcome back, {session.user.name}! Manage your Tesla parts store.</p>
       </div>
 
       {/* Stats Cards */}

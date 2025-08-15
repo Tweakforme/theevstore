@@ -66,7 +66,7 @@ model Category {
   sortOrder   Int       @default(0)
   isActive    Boolean   @default(true)
   
-  // NEW: Parent-child relationship fields
+  // Parent-child relationship fields
   parentId    String?   // Points to parent category
   parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
@@ -121,6 +121,11 @@ model Product {
   // Physical attributes
   weight            Decimal?  // For shipping calculations
   dimensions        String?   // "10x5x2 inches"
+  
+  // Tesla-specific fields
+  oeNumber          String?   // OE/OEM part number
+  unitPacking       String?   // Unit packaging info
+  fullPacking       String?   // Full box packaging info
   
   // Organization
   categoryId        String

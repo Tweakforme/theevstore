@@ -83,9 +83,36 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+// UPDATED GET function with query parameter support
+export async function GET(request: NextRequest) {
   try {
-    const products = await prisma.product.findMany({
+    const { searchParams } = new URL(request.url);
+    
+    // Extract query parameters
+    const category = searchParams.get('category');
+    const limit = searchParams.get('limit');
+    const exclude = searchParams.get('exclude');
+    
+    // Build the where clause
+    const where: any = {
+      isActive: true // Only show active products
+    };
+    
+    // Filter by category if provided
+    if (category) {
+      where.categoryId = category;
+    }
+    
+    // Exclude specific product if provided
+    if (exclude) {
+      where.NOT = {
+        id: exclude
+      };
+    }
+    
+    // Build the query options
+    const queryOptions: any = {
+      where,
       include: {
         category: true,
         images: {
@@ -93,7 +120,17 @@ export async function GET() {
         }
       },
       orderBy: { createdAt: 'desc' }
-    });
+    };
+    
+    // Add limit if provided
+    if (limit) {
+      const limitNum = parseInt(limit);
+      if (!isNaN(limitNum) && limitNum > 0) {
+        queryOptions.take = limitNum;
+      }
+    }
+
+    const products = await prisma.product.findMany(queryOptions);
 
     return NextResponse.json({ products });
   } catch (error) {

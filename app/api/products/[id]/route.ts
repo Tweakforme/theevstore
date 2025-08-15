@@ -7,21 +7,41 @@ import { existsSync } from 'fs';
 
 const prisma = new PrismaClient();
 
-// GET single product
+// GET single product (now handles both ID and slug)
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const productId = (await params).id;
+    const identifier = (await params).id;
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+    if (!identifier) {
+      return NextResponse.json({ error: 'Product ID or slug is required' }, { status: 400 });
+    }
+
+    // Check if this is coming from admin (has specific query params or path patterns)
+    const url = new URL(request.url);
+    const isAdminRequest = url.pathname.includes('/admin') || url.searchParams.has('admin');
+
+    // Try to find product by slug first (for public pages), then by ID (for admin)
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { slug: identifier },
+          { id: identifier }
+        ]
+      },
       include: {
         images: {
           orderBy: { sortOrder: 'asc' }
         },
-        category: true
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
       }
     });
 
@@ -29,28 +49,41 @@ export async function GET(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Transform the data for compatibility with your form
-    const productForEdit = {
-      ...product,
-      imageUrl: product.images && product.images.length > 0 ? product.images[0].url : null,
-      // Parse compatibleModels JSON string to boolean flags
-      model3Compatible: product.compatibleModels?.includes('MODEL_3') || false,
-      modelYCompatible: product.compatibleModels?.includes('MODEL_Y') || false,
-      // Convert Decimal to number for form
-      price: Number(product.price),
-      compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
-      // Add category name for form
-      categoryName: product.category.name
-    };
+    // Return different formats based on the request source
+    if (isAdminRequest) {
+      // Transform the data for compatibility with your admin form
+      const productForEdit = {
+        ...product,
+        imageUrl: product.images && product.images.length > 0 ? product.images[0].url : null,
+        // Parse compatibleModels JSON string to boolean flags
+        model3Compatible: product.compatibleModels?.includes('MODEL_3') || false,
+        modelYCompatible: product.compatibleModels?.includes('MODEL_Y') || false,
+        // Convert Decimal to number for form
+        price: Number(product.price),
+        compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
+        // Add category name for form
+        categoryName: product.category?.name
+      };
 
-    return NextResponse.json(productForEdit);
+      return NextResponse.json(productForEdit);
+    } else {
+      // Transform data for public product page
+      const transformedProduct = {
+        ...product,
+        price: Number(product.price),
+        compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : undefined,
+        weight: product.weight ? Number(product.weight) : undefined,
+      };
+
+      return NextResponse.json(transformedProduct);
+    }
   } catch (error) {
     console.error('Error fetching product:', error);
     return NextResponse.json({ error: 'Failed to fetch product' }, { status: 500 });
   }
 }
 
-// UPDATE product
+// UPDATE product (unchanged)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -229,7 +262,7 @@ export async function PUT(
   }
 }
 
-// Your existing DELETE function
+// DELETE product (unchanged)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

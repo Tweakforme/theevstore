@@ -1,9 +1,18 @@
 // app/layout.tsx
 import type { Metadata } from "next";
+import { Space_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import Providers from "./components/SessionProvider";
+
+// Configure Space Mono font
+const spaceMono = Space_Mono({ 
+  subsets: ["latin"],
+  weight: ["400", "700"], // Space Mono only comes in 400 and 700
+  style: ["normal", "italic"], // Include both normal and italic
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "TheEVStore - Premium Tesla Parts",
@@ -17,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      <body className={`${spaceMono.className} min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50`}>
         <Providers>
           <Header />
           {children}

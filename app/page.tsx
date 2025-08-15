@@ -1,8 +1,26 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Search, ArrowRight, Sparkles, ShoppingCart, Heart, Star, Package, Eye, Zap, Shield, Truck, RefreshCw, TrendingUp, Award, Users, ChevronDown, Filter } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  ArrowRight,
+  Sparkles,
+  ShoppingCart,
+  Heart,
+  Package,
+  Eye,
+  TrendingUp,
+  Award,
+  Users,
+  ChevronDown,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+} from "lucide-react";
 
-// Type definitions
+// ------------ Types ------------
 interface Product {
   id: string;
   name: string;
@@ -13,19 +31,16 @@ interface Product {
   stockQuantity: number;
   isFeatured?: boolean;
   isActive?: boolean;
-  compatibleModels?: string;
+  compatibleModels?: string; // e.g. "MODEL_3, MODEL_Y"
   categoryId: string;
-  images?: Array<{
-    id: string;
-    url: string;
-    altText?: string;
-  }>;
+  images?: Array<{ id: string; url: string; altText?: string }>;
 }
 
 interface Category {
   id: string;
   name: string;
   parentId: string | null;
+  level?: number;
   children?: Category[];
 }
 
@@ -49,194 +64,515 @@ interface Stat {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// ------------ Carousel Hook ------------
+const useCarousel = (items: Product[], options: { autoPlay?: boolean; interval?: number } = {}) => {
+  const { autoPlay = true, interval = 3000 } = options;
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  // Create extended array for seamless infinite scroll
+  const extendedItems = useMemo(() => {
+    if (items.length === 0) return [];
+    if (items.length === 1) return [items[0], items[0], items[0]]; // Duplicate single item
+    
+    // Add first few items to the end and last few items to the beginning
+    const cloneCount = Math.min(3, items.length);
+    const startClones = items.slice(-cloneCount);
+    const endClones = items.slice(0, cloneCount);
+    
+    return [...startClones, ...items, ...endClones];
+  }, [items]);
+
+  const actualStartIndex = useMemo(() => {
+    if (items.length <= 1) return 0;
+    return Math.min(3, items.length);
+  }, [items.length]);
+
+  // Auto-play functionality
+  useEffect(() => {
+    if (!autoPlay || items.length <= 1) return;
+
+    const timer = setInterval(() => {
+      next();
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [autoPlay, interval, items.length]);
+
+  // Handle seamless loop
+  useEffect(() => {
+    if (items.length <= 1) return;
+
+    const handleTransitionEnd = () => {
+      setIsTransitioning(false);
+      
+      // Reset position for seamless loop
+      if (currentIndex >= actualStartIndex + items.length) {
+        // At the end clones, jump to beginning
+        setCurrentIndex(actualStartIndex);
+      } else if (currentIndex < actualStartIndex) {
+        // At the start clones, jump to end
+        setCurrentIndex(actualStartIndex + items.length - 1);
+      }
+    };
+
+    const carousel = carouselRef.current;
+    if (carousel) {
+      carousel.addEventListener('transitionend', handleTransitionEnd);
+      return () => carousel.removeEventListener('transitionend', handleTransitionEnd);
+    }
+  }, [currentIndex, actualStartIndex, items.length]);
+
+  // Initialize position
+  useEffect(() => {
+    if (items.length > 1) {
+      setCurrentIndex(actualStartIndex);
+    }
+  }, [actualStartIndex, items.length]);
+
+  const next = () => {
+    if (items.length <= 1) return;
+    setIsTransitioning(true);
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const prev = () => {
+    if (items.length <= 1) return;
+    setIsTransitioning(true);
+    setCurrentIndex(prev => prev - 1);
+  };
+
+  const goTo = (index: number) => {
+    if (items.length <= 1) return;
+    setIsTransitioning(true);
+    setCurrentIndex(actualStartIndex + index);
+  };
+
+  const getCurrentSlideIndex = () => {
+    if (items.length <= 1) return 0;
+    return (currentIndex - actualStartIndex + items.length) % items.length;
+  };
+
+  return {
+    extendedItems,
+    currentIndex,
+    isTransitioning,
+    carouselRef,
+    next,
+    prev,
+    goTo,
+    getCurrentSlideIndex,
+    canInteract: items.length > 1
+  };
+};
+
+// ------------ Component ------------
 const TeslaPartsHomepage = () => {
+  const router = useRouter();
+  // Data
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // UI
   const [cartCount, setCartCount] = useState(0);
-  const [favorites, setFavorites] = useState(new Set<string>());
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  
-  // Filters
-  const [selectedModel, setSelectedModel] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedSubcategory, setSelectedSubcategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Hero carousel with your actual images
+  // Filters (pending)
+  const [selectedModel, setSelectedModel] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filters (applied)
+  const [appliedModel, setAppliedModel] = useState("all");
+  const [appliedCategory, setAppliedCategory] = useState("all");
+  const [appliedSubcategory, setAppliedSubcategory] = useState("all");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+
+  // Models with counts
+  const [teslaModels, setTeslaModels] = useState<TeslaModel[]>([
+    { id: "all", name: "All Models", count: 0 },
+    { id: "MODEL_3", name: "Model 3", count: 0 },
+    { id: "MODEL_Y", name: "Model Y", count: 0 },
+    { id: "MODEL_S", name: "Model S", count: 0 },
+    { id: "MODEL_X", name: "Model X", count: 0 },
+  ]);
+
+  // Carousel
+  const carousel = useCarousel(featuredProducts, { autoPlay: true, interval: 4000 });
+
+  // Hero
   const heroSlides: HeroSlide[] = [
     {
       title: "Premium Tesla Model 3 Parts",
       subtitle: "Authentic components for every repair and upgrade",
       description: "Over 615 genuine Tesla Model 3 parts in stock",
       ctaText: "Shop Model 3 Parts",
-      image: "/images/hero-1.jpg"
+      image: "/images/hero-1.jpg",
     },
     {
-      title: "Model Y Parts Coming Soon", 
+      title: "Model Y Parts Coming Soon",
       subtitle: "Expanding our collection with 600+ Model Y components",
       description: "The same quality and precision for your Model Y",
       ctaText: "Get Notified",
-      image: "/images/hero-2.jpg"
+      image: "/images/hero-2.jpg",
     },
     {
       title: "Professional Installation",
-      subtitle: "Expert service and genuine parts guarantee", 
+      subtitle: "Expert service and genuine parts guarantee",
       description: "Quality you can trust, service you can count on",
       ctaText: "Learn More",
-      image: "/images/hero-3.jpg"
-    }
+      image: "/images/hero-3.jpg",
+    },
   ];
 
-  // Tesla Models with counts from backend
-  const [teslaModels, setTeslaModels] = useState<TeslaModel[]>([
-    { id: 'all', name: 'All Models', count: 0 },
-    { id: 'MODEL_3', name: 'Model 3', count: 0 },
-    { id: 'MODEL_Y', name: 'Model Y', count: 0 },
-    { id: 'MODEL_S', name: 'Model S', count: 0 },
-    { id: 'MODEL_X', name: 'Model X', count: 0 }
-  ]);
-
-  // Stats for the hero section
   const stats: Stat[] = [
     { label: "Tesla Parts", value: "615+", icon: Package },
     { label: "Categories", value: "103", icon: TrendingUp },
     { label: "Happy Customers", value: "2.5K+", icon: Users },
-    { label: "Quality Rating", value: "4.9/5", icon: Award }
+    { label: "Quality Rating", value: "4.9/5", icon: Award },
   ];
 
-  // Fetch all data from backend
+  // ------------ Fetch ------------
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch products
-        const productsResponse = await fetch('/api/products');
+        const productsResponse = await fetch("/api/products");
         if (productsResponse.ok) {
           const productsData = await productsResponse.json();
-          const products: Product[] = productsData.products || productsData || [];
-          
+          const products: Product[] =
+            productsData?.products || productsData || [];
           setAllProducts(products);
-          
-          // Get featured products from backend (those with isFeatured: true)
-          const featured = products.filter((p: Product) => p.isFeatured === true).slice(0, 10);
+
+          // Get featured products (always set, even if empty)
+          const featured = products.filter((p) => p.isFeatured === true);
           setFeaturedProducts(featured);
 
-          // Update model counts based on actual products
-          const modelCounts: Record<string, number> = products.reduce((acc: Record<string, number>, product: Product) => {
-            if (product.compatibleModels) {
-              const models = product.compatibleModels.split(',');
-              models.forEach((model: string) => {
-                const trimmedModel = model.trim();
-                acc[trimmedModel] = (acc[trimmedModel] || 0) + 1;
-              });
-            }
-            return acc;
-          }, {});
-
-          setTeslaModels(prev => prev.map((model: TeslaModel) => ({
-            ...model,
-            count: model.id === 'all' ? products.length : (modelCounts[model.id] || 0)
-          })));
+          const modelCounts = products.reduce<Record<string, number>>(
+            (acc, product) => {
+              if (product.compatibleModels) {
+                product.compatibleModels.split(",").forEach((m) => {
+                  const k = m.trim();
+                  if (k) acc[k] = (acc[k] || 0) + 1;
+                });
+              }
+              return acc;
+            },
+            {}
+          );
+          setTeslaModels((prev) =>
+            prev.map((m) => ({
+              ...m,
+              count: m.id === "all" ? products.length : modelCounts[m.id] || 0,
+            }))
+          );
         }
 
-        // Fetch categories with hierarchy
-        const categoriesResponse = await fetch('/api/categories');
+        const categoriesResponse = await fetch("/api/categories");
         if (categoriesResponse.ok) {
           const categoriesData = await categoriesResponse.json();
-          setCategories(categoriesData || []);
+          setCategories(
+            Array.isArray(categoriesData)
+              ? categoriesData
+              : categoriesData?.items || []
+          );
         }
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
+      } catch (e) {
+        console.error("Error fetching data:", e);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  // Auto-rotate hero carousel
+  // ------------ Hero auto-rotate ------------
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroSlides.length);
-    }, 6000);
+    const interval = setInterval(
+      () => setCurrentImageIndex((i) => (i + 1) % heroSlides.length),
+      6000
+    );
     return () => clearInterval(interval);
   }, [heroSlides.length]);
 
-  // Build hierarchical categories for filtering
-  const buildCategoryHierarchy = (): Category[] => {
-    const rootCategories = categories.filter((cat: Category) => cat.parentId === null);
-    const categoryMap = new Map<string, Category[]>();
-    
-    categories.forEach((cat: Category) => {
-      const key = cat.parentId || 'null';
-      if (!categoryMap.has(key)) {
-        categoryMap.set(key, []);
-      }
-      const categoryList = categoryMap.get(key);
-      if (categoryList) {
-        categoryList.push(cat);
-      }
-    });
+  // ------------ Category helpers ------------
+  const getMainCategories = useMemo(
+    (): Category[] => categories.filter((c) => c.level === 2),
+    [categories]
+  );
 
-    return rootCategories.map((root: Category) => ({
-      ...root,
-      children: categoryMap.get(root.id) || []
-    }));
+  const getSubcategories = useMemo((): Category[] => {
+    if (selectedCategory === "all") return [];
+    return categories.filter(
+      (c) => c.level === 3 && c.parentId === selectedCategory
+    );
+  }, [categories, selectedCategory]);
+
+  // ------------ Filtering ------------
+  const hasUnappliedChanges =
+    selectedModel !== appliedModel ||
+    selectedCategory !== appliedCategory ||
+    selectedSubcategory !== appliedSubcategory ||
+    searchQuery !== appliedSearchQuery;
+
+  const hasActiveFilters =
+    appliedModel !== "all" ||
+    appliedCategory !== "all" ||
+    appliedSubcategory !== "all" ||
+    appliedSearchQuery.trim() !== "";
+
+  const applyFilters = () => {
+    setAppliedModel(selectedModel);
+    setAppliedCategory(selectedCategory);
+    setAppliedSubcategory(selectedSubcategory);
+    setAppliedSearchQuery(searchQuery);
   };
 
-  const hierarchicalCategories = buildCategoryHierarchy();
-
-  // Get subcategories for selected category
-  const getSubcategories = (): Category[] => {
-    if (selectedCategory === 'all') return [];
-    const category = categories.find((cat: Category) => cat.id === selectedCategory);
-    if (!category) return [];
-    return categories.filter((cat: Category) => cat.parentId === category.id);
+  const clearAllFilters = () => {
+    setSelectedModel("all");
+    setSelectedCategory("all");
+    setSelectedSubcategory("all");
+    setSearchQuery("");
+    setAppliedModel("all");
+    setAppliedCategory("all");
+    setAppliedSubcategory("all");
+    setAppliedSearchQuery("");
   };
 
-// Filter products based on selections
-  const getFilteredProducts = (): Product[] => {
-    return allProducts.filter((product: Product) => {
-      // Model filter
-      const modelMatch = selectedModel === 'all' || 
-        (product.compatibleModels && product.compatibleModels.includes(selectedModel));
-      
-      // Category filter
-      const categoryMatch = selectedCategory === 'all' || product.categoryId === selectedCategory;
-      
-      // Subcategory filter
-      const subcategoryMatch = selectedSubcategory === 'all' || product.categoryId === selectedSubcategory;
-      
-      // Search filter
-      const searchMatch = searchQuery === '' || 
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      return modelMatch && categoryMatch && subcategoryMatch && searchMatch;
-    });
+  const filteredProducts = useMemo((): Product[] => {
+    let filtered = allProducts;
+
+    if (appliedModel !== "all") {
+      filtered = filtered.filter(
+        (p) =>
+          p.compatibleModels &&
+          p
+            .compatibleModels.split(",")
+            .map((m) => m.trim())
+            .includes(appliedModel)
+      );
+    }
+
+    if (appliedCategory !== "all") {
+      const subIds = categories
+        .filter((c) => c.parentId === appliedCategory)
+        .map((c) => c.id);
+      filtered = filtered.filter(
+        (p) => p.categoryId === appliedCategory || subIds.includes(p.categoryId)
+      );
+    }
+
+    if (appliedSubcategory !== "all") {
+      filtered = filtered.filter((p) => p.categoryId === appliedSubcategory);
+    }
+
+    const q = appliedSearchQuery.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((p) => {
+        const inName = p.name.toLowerCase().includes(q);
+        const inSku = p.sku.toLowerCase().includes(q);
+        const inDesc = p.description?.toLowerCase().includes(q);
+        return inName || inSku || !!inDesc;
+      });
+    }
+
+    return filtered;
+  }, [
+    allProducts,
+    categories,
+    appliedModel,
+    appliedCategory,
+    appliedSubcategory,
+    appliedSearchQuery,
+  ]);
+
+  // When no filters are applied, show nothing in the top grid
+  const primaryProducts = hasActiveFilters ? filteredProducts : [];
+
+  // ------------ Handlers ------------
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    setSelectedCategory("all");
+    setSelectedSubcategory("all");
   };
 
-  const filteredProducts = getFilteredProducts();
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    setSelectedSubcategory("all");
+  };
 
   const toggleFavorite = (productId: string) => {
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(productId)) {
-      newFavorites.delete(productId);
-    } else {
-      newFavorites.add(productId);
-    }
-    setFavorites(newFavorites);
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
+      return next;
+    });
   };
 
   const addToCart = (productId: string) => {
-    setCartCount(prev => prev + 1);
-    console.log('Added to cart:', productId);
+    setCartCount((prev) => prev + 1);
+    console.log("Added to cart:", productId);
   };
 
+  // ------------ Product Cards ------------
+  function ProductCardBase({ product, className = "" }: { product: Product; className?: string }) {
+    const router = useRouter();
+
+    const handleProductClick = () => {
+      router.push(`/products/${product.slug}`);
+    };
+
+    return (
+      <div 
+        className={`group bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden cursor-pointer ${className}`}
+        onClick={handleProductClick}
+      >
+        {/* Image */}
+        <div className="relative aspect-square bg-slate-100 overflow-hidden">
+          {product.images?.length ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.images[0].url}
+              alt={product.images[0].altText || product.name}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+              <Package className="h-12 w-12 text-slate-300" />
+            </div>
+          )}
+
+          {/* Badges */}
+          <div className="absolute top-3 left-3 flex flex-col space-y-1">
+            {product.isFeatured && (
+              <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full font-medium flex items-center space-x-1">
+                <Star className="h-3 w-3 fill-current" />
+                <span>Featured</span>
+              </span>
+            )}
+            {product.isActive === false && (
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                Inactive
+              </span>
+            )}
+          </div>
+
+          {/* Quick Actions - Stop propagation to prevent navigation */}
+          <div className="absolute top-3 right-3 flex flex-col space-y-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(product.id);
+              }}
+              className={`p-2 rounded-full shadow-md transition-colors ${
+                favorites.has(product.id)
+                  ? "bg-red-500 text-white"
+                  : "bg-white text-slate-600 hover:text-red-500"
+              }`}
+              aria-label="Toggle favorite"
+            >
+              <Heart className="h-3 w-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Add quick view functionality here
+              }}
+              className="p-2 bg-white text-slate-600 hover:text-slate-900 rounded-full shadow-md transition-colors"
+              aria-label="Quick view"
+            >
+              <Eye className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Stock overlay */}
+          {product.stockQuantity === 0 && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <span className="bg-white text-slate-900 px-3 py-1 rounded-full text-sm font-medium">
+                Out of Stock
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="p-4">
+          <div className="mb-2">
+            <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">
+              {product.sku}
+            </span>
+          </div>
+
+          <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2 text-sm group-hover:text-emerald-600 transition-colors">
+            {product.name}
+          </h3>
+
+          {product.description && (
+            <p className="text-xs text-slate-600 mb-3 line-clamp-2">
+              {product.description}
+            </p>
+          )}
+
+          {/* Price */}
+          <div className="flex items-center space-x-2 mb-3">
+            <span className="text-lg font-bold text-slate-900">
+              ${Number(product.price).toFixed(2)}
+            </span>
+            {typeof product.compareAtPrice === "number" && (
+              <span className="text-xs text-slate-500 line-through">
+                ${Number(product.compareAtPrice).toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          {/* Stock */}
+          <div className="text-xs text-slate-600 mb-3">
+            {product.stockQuantity > 0 ? (
+              <span className="text-green-600">
+                ✓ In Stock ({product.stockQuantity})
+              </span>
+            ) : (
+              <span className="text-red-600">✗ Out of Stock</span>
+            )}
+          </div>
+
+          {/* Add to cart - Stop propagation */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              addToCart(product.id);
+            }}
+            disabled={product.stockQuantity === 0}
+            className={`w-full py-2 text-sm font-medium rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 ${
+              product.stockQuantity > 0
+                ? "bg-slate-900 text-white hover:bg-slate-800 hover:scale-105"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+            }`}
+          >
+            <ShoppingCart className="h-3 w-3" />
+            <span>{product.stockQuantity > 0 ? "Add to Cart" : "Out of Stock"}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Grid version - responsive width
+  function GridProductCard({ product }: { product: Product }) {
+    return <ProductCardBase product={product} className="" />;
+  }
+
+  // Carousel version - fixed width
+  function CarouselProductCard({ product }: { product: Product }) {
+    return <ProductCardBase product={product} className="flex-shrink-0 w-72" />;
+  }
+
+  // ------------ Render ------------
   const currentSlide = heroSlides[currentImageIndex];
 
   return (
@@ -252,15 +588,14 @@ const TeslaPartsHomepage = () => {
               style={{ opacity: currentImageIndex === index ? 1 : 0 }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
+              <img
                 src={slide.image}
                 alt="Tesla Parts"
                 className="absolute inset-0 w-full h-full object-cover"
-                style={{ objectPosition: 'center' }}
+                style={{ objectPosition: "center" }}
               />
-              {/* Dark overlay for text readability */}
-              <div className="absolute inset-0 bg-black/50"></div>
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent"></div>
+              <div className="absolute inset-0 bg-black/50" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
             </div>
           ))}
         </div>
@@ -273,23 +608,33 @@ const TeslaPartsHomepage = () => {
                 <Sparkles className="h-4 w-4 mr-2 text-emerald-400" />
                 <span>{currentSlide.subtitle}</span>
               </div>
-              
+
               <h1 className="text-5xl lg:text-7xl font-black leading-tight mb-8">
-                <span className="block text-white" style={{ textShadow: '3px 3px 6px rgba(0,0,0,0.8)' }}>
-                  {currentSlide.title.split(' ').slice(0, 2).join(' ')}
+                <span
+                  className="block text-white"
+                  style={{ textShadow: "3px 3px 6px rgba(0,0,0,0.8)" }}
+                >
+                  {currentSlide.title.split(" ").slice(0, 2).join(" ")}
                 </span>
                 <span className="block bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent font-black">
-                  {currentSlide.title.split(' ').slice(2).join(' ')}
+                  {currentSlide.title.split(" ").slice(2).join(" ")}
                 </span>
               </h1>
-              
-              <p className="text-xl text-white leading-relaxed mb-10 max-w-lg font-medium" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+
+              <p
+                className="text-xl text-white leading-relaxed mb-10 max-w-lg font-medium"
+                style={{ textShadow: "2px 2px 4px rgba(0,0,0,0.8)" }}
+              >
                 {currentSlide.description}
               </p>
-              
+
               <div className="flex flex-col sm:flex-row gap-4">
-                <button 
-                  onClick={() => document.getElementById('featured-products')?.scrollIntoView({ behavior: 'smooth' })}
+                <button
+                  onClick={() =>
+                    document
+                      .getElementById("products-section")
+                      ?.scrollIntoView({ behavior: "smooth" })
+                  }
                   className="px-10 py-4 bg-white text-slate-900 font-bold text-lg rounded-full hover:bg-emerald-50 hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-3 group shadow-xl"
                 >
                   <span>{currentSlide.ctaText}</span>
@@ -303,8 +648,8 @@ const TeslaPartsHomepage = () => {
 
             {/* Hero Stats */}
             <div className="grid grid-cols-2 gap-6">
-              {stats.map((stat: Stat, index: number) => (
-                <div 
+              {stats.map((stat, index) => (
+                <div
                   key={index}
                   className="bg-black/30 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-white text-center hover:bg-black/40 transition-all duration-300"
                 >
@@ -321,28 +666,31 @@ const TeslaPartsHomepage = () => {
 
         {/* Hero Navigation */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20">
-          {heroSlides.map((_, index: number) => (
+          {heroSlides.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentImageIndex(index)}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                currentImageIndex === index 
-                  ? 'bg-white shadow-lg' 
-                  : 'bg-white/40 hover:bg-white/60'
+                currentImageIndex === index
+                  ? "bg-white shadow-lg"
+                  : "bg-white/40 hover:bg-white/60"
               }`}
+              aria-label={`Go to slide ${index + 1}`}
             />
           ))}
         </div>
       </section>
 
-      
-      {/* Filters Section */}
-      <section className="py-8 bg-white border-b border-slate-200">
+      {/* Enhanced Filters Section */}
+      <section
+        id="products-section"
+        className="py-8 bg-white border-b border-slate-200"
+      >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           {/* Mobile Filter Toggle */}
           <div className="lg:hidden mb-4">
             <button
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => setShowFilters((s) => !s)}
               className="flex items-center justify-between w-full p-4 bg-slate-100 rounded-lg"
             >
               <span className="font-medium text-slate-900">Filters & Search</span>
@@ -350,115 +698,309 @@ const TeslaPartsHomepage = () => {
             </button>
           </div>
 
-          <div className={`${showFilters ? 'block' : 'hidden lg:block'}`}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Search */}
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Search Products</label>
+          <div className={`${showFilters ? "block" : "hidden lg:block"}`}>
+            {/* Search Bar */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Search Products
+              </label>
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, SKU, or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-10 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4 text-slate-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Dropdowns */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* Tesla Model Filter */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Tesla Model
+                </label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by name or SKU..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none bg-white"
+                  >
+                    {teslaModels.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name} ({model.count})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
-              {/* Tesla Model */}
+              {/* Main Category Filter */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Tesla Model</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    setSelectedCategory('all');
-                    setSelectedSubcategory('all');
-                  }}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                >
-                  {teslaModels.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} ({model.count})
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Category
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none bg-white"
+                  >
+                    <option value="all">All Categories</option>
+                    {getMainCategories.map((category) => {
+                      const subIds = categories
+                        .filter((c) => c.parentId === category.id)
+                        .map((c) => c.id);
+                      const productCount = allProducts.filter(
+                        (p) =>
+                          p.categoryId === category.id ||
+                          subIds.includes(p.categoryId)
+                      ).length;
+
+                      return (
+                        <option key={category.id} value={category.id}>
+                          {category.name} ({productCount})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
 
-              {/* Main Category */}
+              {/* Subcategory Filter */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    setSelectedCategory(e.target.value);
-                    setSelectedSubcategory('all');
-                  }}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                >
-                  <option value="all">All Categories</option>
-                  {hierarchicalCategories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Subcategory
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedSubcategory}
+                    onChange={(e) => setSelectedSubcategory(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                    disabled={selectedCategory === "all"}
+                  >
+                    <option value="all">
+                      {selectedCategory === "all"
+                        ? "Select category first"
+                        : "All Subcategories"}
                     </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Subcategory */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Subcategory</label>
-                <select
-                  value={selectedSubcategory}
-                  onChange={(e) => setSelectedSubcategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  disabled={selectedCategory === 'all'}
-                >
-                  <option value="all">All Subcategories</option>
-                  {getSubcategories().map(subcat => (
-                    <option key={subcat.id} value={subcat.id}>
-                      {subcat.name}
-                    </option>
-                  ))}
-                </select>
+                    {getSubcategories.map((subcat) => {
+                      const productCount = allProducts.filter(
+                        (p) => p.categoryId === subcat.id
+                      ).length;
+                      return (
+                        <option key={subcat.id} value={subcat.id}>
+                          {subcat.name} ({productCount})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            {/* Results Summary */}
-            <div className="mt-4 flex items-center justify-between">
+            {/* Filter Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <button
+                  onClick={applyFilters}
+                  disabled={!hasUnappliedChanges}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 ${
+                    hasUnappliedChanges
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-md"
+                      : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                  }`}
+                >
+                  <Search className="h-4 w-4" />
+                  <span>Show Results</span>
+                  {hasUnappliedChanges && (
+                    <span className="bg-emerald-700 text-emerald-100 text-xs px-2 py-1 rounded-full">
+                      Updated
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors text-sm"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              {/* Results Preview */}
               <div className="text-sm text-slate-600">
-                Showing {filteredProducts.length} of {allProducts.length} products
+                {hasUnappliedChanges ? (
+                  <span className="text-orange-600 font-medium">
+                    Click "Show Results" to apply filters
+                  </span>
+                ) : hasActiveFilters ? (
+                  <span className="text-emerald-600 font-medium">
+                    Showing {primaryProducts.length} filtered products
+                  </span>
+                ) : (
+                  <span>Use filters to see products</span>
+                )}
               </div>
-              <button
-                onClick={() => {
-                  setSelectedModel('all');
-                  setSelectedCategory('all');
-                  setSelectedSubcategory('all');
-                  setSearchQuery('');
-                }}
-                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-              >
-                Clear all filters
-              </button>
             </div>
+
+            {/* Active Filters Display */}
+            {hasActiveFilters && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-emerald-800">
+                    Active Filters:
+                  </span>
+
+                  {appliedModel !== "all" && (
+                    <span className="inline-flex items-center px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
+                      {teslaModels.find((m) => m.id === appliedModel)?.name}
+                      <button
+                        onClick={() => {
+                          setSelectedModel("all");
+                          setAppliedModel("all");
+                        }}
+                        className="ml-1 hover:text-emerald-900"
+                        aria-label="Remove model filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {appliedCategory !== "all" && (
+                    <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                      {categories.find((c) => c.id === appliedCategory)?.name}
+                      <button
+                        onClick={() => {
+                          setSelectedCategory("all");
+                          setAppliedCategory("all");
+                        }}
+                        className="ml-1 hover:text-blue-900"
+                        aria-label="Remove category filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {appliedSubcategory !== "all" && (
+                    <span className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                      {categories.find((c) => c.id === appliedSubcategory)?.name}
+                      <button
+                        onClick={() => {
+                          setSelectedSubcategory("all");
+                          setAppliedSubcategory("all");
+                        }}
+                        className="ml-1 hover:text-purple-900"
+                        aria-label="Remove subcategory filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {appliedSearchQuery && (
+                    <span className="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                      "{appliedSearchQuery}"
+                      <button
+                        onClick={() => {
+                          setSearchQuery("");
+                          setAppliedSearchQuery("");
+                        }}
+                        className="ml-1 hover:text-yellow-900"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Featured Products Section */}
-      <section id="featured-products" className="py-20 bg-slate-50">
+      {/* PRODUCTS: Filtered only (hidden when no filters) */}
+      {hasActiveFilters && (
+        <section className="py-16 bg-slate-50">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-4xl font-light text-slate-900 mb-2">
+                  Filtered Products
+                </h2>
+                <p className="text-xl text-slate-600">
+                  {primaryProducts.length} products match your selection
+                </p>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-20">
+                <div className="inline-flex items-center space-x-3">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce [animation-delay:120ms]" />
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:240ms]" />
+                </div>
+                <p className="text-slate-500 mt-4 font-light">Loading products...</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {primaryProducts.slice(0, 15).map((p) => (
+                    <GridProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+
+                {primaryProducts.length === 0 && (
+                  <div className="text-center py-16">
+                    <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                      No products found
+                    </h3>
+                    <p className="text-slate-600 mb-6">
+                      Try adjusting your filters or search terms.
+                    </p>
+                    <button
+                      onClick={clearAllFilters}
+                      className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                    >
+                      Clear All Filters
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* FEATURED: Always visible with carousel */}
+      <section className="py-20 bg-white border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between mb-12">
             <div>
-              <h2 className="text-4xl font-light text-slate-900 mb-4">
-                {selectedModel !== 'all' || selectedCategory !== 'all' || searchQuery ? 'Filtered Products' : 'Featured Products'}
+              <h2 className="text-4xl font-light text-slate-900 mb-2">
+                Featured Products
               </h2>
               <p className="text-xl text-slate-600">
-                {selectedModel !== 'all' || selectedCategory !== 'all' || searchQuery 
-                  ? `${filteredProducts.length} products match your filters`
-                  : 'Our most popular and highest-rated Tesla parts'
+                {featuredProducts.length > 0 
+                  ? "Our most popular and highest-rated Tesla parts"
+                  : "No featured products available right now"
                 }
               </p>
             </div>
@@ -471,261 +1013,104 @@ const TeslaPartsHomepage = () => {
           {loading ? (
             <div className="text-center py-20">
               <div className="inline-flex items-center space-x-3">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100"></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce [animation-delay:120ms]" />
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:240ms]" />
               </div>
-              <p className="text-slate-500 mt-4 font-light">Loading products...</p>
+              <p className="text-slate-500 mt-4 font-light">Loading featured products...</p>
+            </div>
+          ) : featuredProducts.length === 0 ? (
+            <div className="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300">
+              <div className="relative inline-block mb-6">
+                <Star className="h-16 w-16 text-slate-400 mx-auto" />
+                <div className="absolute -top-2 -right-2">
+                  <div className="w-8 h-8 bg-slate-300 rounded-full flex items-center justify-center">
+                    <span className="text-slate-600 text-sm font-bold">0</span>
+                  </div>
+                </div>
+              </div>
+              
+              <h3 className="text-2xl font-semibold text-slate-900 mb-3">
+                No Featured Products Yet
+              </h3>
+              <p className="text-slate-600 max-w-md mx-auto text-lg leading-relaxed mb-6">
+                We're carefully selecting the best Tesla parts to feature here. 
+                Check back soon for our top recommendations!
+              </p>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
+                <p className="text-blue-800 text-sm">
+                  <strong>Admin:</strong> Mark products as "Featured" in the admin dashboard to display them here.
+                </p>
+              </div>
             </div>
           ) : (
-            <>
-              {/* Products Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                {(selectedModel !== 'all' || selectedCategory !== 'all' || searchQuery ? filteredProducts : featuredProducts).slice(0, 10).map((product: Product) => (
-                  <div
-                    key={product.id}
-                    className="group bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden"
-                  >
-                    {/* Product Image */}
-                    <div className="relative aspect-square bg-slate-100 overflow-hidden">
-                      {product.images && product.images.length > 0 ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={product.images[0].url}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-                          <Package className="h-12 w-12 text-slate-300" />
-                        </div>
-                      )}
-                      
-                      {/* Badges */}
-                      <div className="absolute top-3 left-3 flex flex-col space-y-1">
-                        {product.isFeatured && (
-                          <span className="bg-emerald-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                            Featured
-                          </span>
-                        )}
-                        {product.isActive === false && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                            Inactive
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Quick Actions */}
-                      <div className="absolute top-3 right-3 flex flex-col space-y-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => toggleFavorite(product.id)}
-                          className={`p-2 rounded-full shadow-md transition-colors ${
-                            favorites.has(product.id)
-                              ? 'bg-red-500 text-white'
-                              : 'bg-white text-slate-600 hover:text-red-500'
-                          }`}
-                        >
-                          <Heart className="h-3 w-3" />
-                        </button>
-                        <button className="p-2 bg-white text-slate-600 hover:text-slate-900 rounded-full shadow-md transition-colors">
-                          <Eye className="h-3 w-3" />
-                        </button>
-                      </div>
-
-                      {/* Stock Status */}
-                      {product.stockQuantity === 0 && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="bg-white text-slate-900 px-3 py-1 rounded-full text-sm font-medium">
-                            Out of Stock
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Product Info */}
-                    <div className="p-4">
-                      <div className="mb-2">
-                        <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">
-                          {product.sku}
-                        </span>
-                      </div>
-
-                      <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2 text-sm group-hover:text-emerald-600 transition-colors">
-                        {product.name}
-                      </h3>
-
-                      {product.description && (
-                        <p className="text-xs text-slate-600 mb-3 line-clamp-2">
-                          {product.description}
-                        </p>
-                      )}
-
-                      {/* Price */}
-                      <div className="flex items-center space-x-2 mb-3">
-                        <span className="text-lg font-bold text-slate-900">
-                          ${Number(product.price).toFixed(2)}
-                        </span>
-                        {product.compareAtPrice && (
-                          <span className="text-xs text-slate-500 line-through">
-                            ${Number(product.compareAtPrice).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Stock Quantity */}
-                      <div className="text-xs text-slate-600 mb-3">
-                        {product.stockQuantity > 0 ? (
-                          <span className="text-green-600">✓ In Stock ({product.stockQuantity})</span>
-                        ) : (
-                          <span className="text-red-600">✗ Out of Stock</span>
-                        )}
-                      </div>
-
-                      {/* Add to Cart */}
-                      <button
-                        onClick={() => addToCart(product.id)}
-                        disabled={product.stockQuantity === 0}
-                        className={`w-full py-2 text-sm font-medium rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 ${
-                          product.stockQuantity > 0
-                            ? 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-105'
-                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <ShoppingCart className="h-3 w-3" />
-                        <span>{product.stockQuantity > 0 ? 'Add to Cart' : 'Out of Stock'}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            <div className="relative">
+              {/* Carousel Container */}
+              <div className="overflow-hidden">
+                <div
+                  ref={carousel.carouselRef}
+                  className="flex gap-6 transition-transform duration-500 ease-in-out"
+                  style={{
+                    transform: `translateX(-${carousel.currentIndex * (288 + 24)}px)`, // 288px = w-72, 24px = gap-6
+                    transition: carousel.isTransitioning ? 'transform 0.5s ease-in-out' : 'none'
+                  }}
+                >
+                  {carousel.extendedItems.map((product, index) => (
+                    <CarouselProductCard key={`${product.id}-${index}`} product={product} />
+                  ))}
+                </div>
               </div>
 
-              {/* No Products */}
-              {(selectedModel !== 'all' || selectedCategory !== 'all' || searchQuery) && filteredProducts.length === 0 && (
-                <div className="text-center py-16">
-                  <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">No products found</h3>
-                  <p className="text-slate-600 mb-6">Try adjusting your filters or search terms.</p>
+              {/* Navigation Controls */}
+              {carousel.canInteract && (
+                <>
+                  {/* Previous Button */}
                   <button
-                    onClick={() => {
-                      setSelectedModel('all');
-                      setSelectedCategory('all');
-                      setSelectedSubcategory('all');
-                      setSearchQuery('');
-                    }}
-                    className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                    onClick={carousel.prev}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 w-12 h-12 bg-white border border-slate-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110"
+                    aria-label="Previous products"
                   >
-                    Clear All Filters
+                    <ChevronLeft className="h-5 w-5 text-slate-600 group-hover:text-slate-900 transition-colors" />
                   </button>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={carousel.next}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 w-12 h-12 bg-white border border-slate-200 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110"
+                    aria-label="Next products"
+                  >
+                    <ChevronRight className="h-5 w-5 text-slate-600 group-hover:text-slate-900 transition-colors" />
+                  </button>
+                </>
+              )}
+
+              {/* Indicators */}
+              {carousel.canInteract && (
+                <div className="flex justify-center mt-8 space-x-2">
+                  {featuredProducts.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => carousel.goTo(index)}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        carousel.getCurrentSlideIndex() === index
+                          ? "bg-slate-900 w-6"
+                          : "bg-slate-300 hover:bg-slate-400"
+                      }`}
+                      aria-label={`Go to product ${index + 1}`}
+                    />
+                  ))}
                 </div>
               )}
 
-              {/* No Featured Products */}
-              {!loading && featuredProducts.length === 0 && selectedModel === 'all' && selectedCategory === 'all' && !searchQuery && (
-                <div className="text-center py-16">
-                  <Package className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">No featured products yet</h3>
-                  <p className="text-slate-600">Products will appear here when marked as featured in the admin.</p>
+              {/* Featured Count Badge */}
+              <div className="absolute -top-6 right-0">
+                <div className="bg-emerald-500 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center space-x-2">
+                  <Star className="h-4 w-4 fill-current" />
+                  <span>{featuredProducts.length} Featured</span>
                 </div>
-              )}
-
-              {/* View All Button - Mobile */}
-              <div className="flex justify-center mt-12 lg:hidden">
-                <button className="px-8 py-3 bg-slate-900 text-white font-medium rounded-full hover:bg-slate-800 transition-colors flex items-center space-x-2">
-                  <span>View All Products</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
               </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Trust & Features Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-light text-slate-900 mb-4">
-              Why Tesla Owners Trust Us
-            </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-cyan-500 mx-auto"></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div className="text-center group">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                <Shield className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-4">OEM Quality Guarantee</h3>
-              <p className="text-slate-600 leading-relaxed">
-                All parts meet or exceed Tesla's original specifications with guaranteed perfect fit and performance.
-              </p>
             </div>
-
-            <div className="text-center group">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                <Truck className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-4">Fast & Secure Shipping</h3>
-              <p className="text-slate-600 leading-relaxed">
-                Express delivery available with tracking. Most orders ship within 24 hours.
-              </p>
-            </div>
-
-            <div className="text-center group">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                <RefreshCw className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-4">Easy Returns</h3>
-              <p className="text-slate-600 leading-relaxed">
-                30-day hassle-free return policy. If it doesn't fit perfectly, we'll make it right.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Newsletter & CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
-        <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-light mb-6">
-            Stay Updated with New Parts & Offers
-          </h2>
-          <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
-            Be the first to know about new Tesla Model 3 & Y parts, exclusive deals, and maintenance tips.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto mb-12">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-full text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-white/30 backdrop-blur-sm"
-            />
-            <button className="px-8 py-4 bg-white text-slate-900 font-semibold rounded-full hover:bg-slate-100 transition-colors">
-              Subscribe
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-3xl font-bold mb-2">{teslaModels.find(m => m.id === 'MODEL_3')?.count || 615}+</div>
-              <div className="text-slate-300 text-sm">Model 3 Parts</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold mb-2">{teslaModels.find(m => m.id === 'MODEL_Y')?.count || 0}+</div>
-              <div className="text-slate-300 text-sm">Model Y Parts*</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold mb-2">{categories.length}</div>
-              <div className="text-slate-300 text-sm">Categories</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold mb-2">4.9</div>
-              <div className="text-slate-300 text-sm">Customer Rating</div>
-            </div>
-          </div>
-          
-          {teslaModels.find(m => m.id === 'MODEL_Y')?.count === 0 && (
-            <p className="text-xs text-slate-400 mt-8">*Model Y parts coming soon</p>
           )}
         </div>
       </section>

@@ -147,26 +147,97 @@ const ProductPage = () => {
   }, [slug]);
 
   // Handlers
-  const handleAddToCart = async () => {
-    if (!product || quantity < 1 || quantity > product.stockQuantity) return;
-    setCartLoading(true);
-    try {
-      const res = await fetch("/api/cart/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id, quantity }),
-      });
-      if (res.ok) {
-        alert(`Added ${quantity} × ${product.name} to cart!`);
+// Replace your handleAddToCart function in the product page with this:
+
+const handleAddToCart = async () => {
+  if (!product || quantity < 1 || quantity > product.stockQuantity) return;
+
+  setCartLoading(true);
+  
+  try {
+    const res = await fetch("/api/cart/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        productId: product.id,
+        quantity 
+      }),
+    });
+
+    const responseData = await res.json();
+
+    if (res.ok) {
+      // Success response
+      alert(`✅ ${responseData.message || `Added ${quantity} × ${product.name} to cart!`}`);
+      
+      if (responseData.isGuest) {
+        // Handle guest cart in localStorage
+        handleGuestCart(responseData.product, quantity);
       } else {
-        alert("Failed to add to cart");
+        // Handle logged-in user cart
+        window.dispatchEvent(new CustomEvent('cartUpdated', { 
+          detail: { count: responseData.cartCount } 
+        }));
       }
-    } catch {
-      alert("Failed to add to cart");
-    } finally {
-      setCartLoading(false);
+      
+      // Reset quantity to 1 after adding
+      setQuantity(1);
+      
+    } else {
+      // Handle errors
+      if (res.status === 404) {
+        alert('❌ Product not found or unavailable');
+      } else if (res.status === 400) {
+        alert(`❌ ${responseData.error || 'Invalid request'}`);
+      } else {
+        alert(`❌ ${responseData.error || 'Failed to add to cart'}`);
+      }
     }
-  };
+  } catch (error) {
+    console.error('Add to cart network error:', error);
+    alert('❌ Network error. Please check your connection and try again.');
+  } finally {
+    setCartLoading(false);
+  }
+};
+
+// Add this helper function to handle guest cart
+const handleGuestCart = (product: any, quantity: number) => {
+  try {
+    // Get existing guest cart from localStorage
+    const existingCart = localStorage.getItem('guestCart');
+    let cartItems = existingCart ? JSON.parse(existingCart) : [];
+
+    // Check if item already exists
+    const existingItemIndex = cartItems.findIndex((item: any) => item.productId === product.id);
+
+    if (existingItemIndex >= 0) {
+      // Update quantity
+      cartItems[existingItemIndex].quantity += quantity;
+    } else {
+      // Add new item
+      cartItems.push({
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: quantity,
+        addedAt: new Date().toISOString()
+      });
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('guestCart', JSON.stringify(cartItems));
+
+    // Update cart count in UI
+    const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    window.dispatchEvent(new CustomEvent('cartUpdated', { 
+      detail: { count: totalItems, isGuest: true } 
+    }));
+
+  } catch (error) {
+    console.error('Error saving to guest cart:', error);
+  }
+};
 
   const handleQuantityChange = (nextQty: number) => {
     const max = product?.stockQuantity ?? 0;

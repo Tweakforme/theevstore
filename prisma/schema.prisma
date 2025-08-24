@@ -30,8 +30,11 @@ model User {
   // Orders and interactions
   orders        Order[]
   favorites     Favorite[]
+  wishlistItems WishlistItem[]
   cartItems     CartItem[]
   addresses     Address[]
+  reviews       Review[]
+  promoUsages   PromoCodeUsage[]
   
   // NextAuth
   accounts      Account[]
@@ -145,8 +148,14 @@ model Product {
   
   // User interactions
   favorites         Favorite[]
+  wishlistItems     WishlistItem[]
   cartItems         CartItem[]
   orderItems        OrderItem[]
+  reviews           Review[]
+  
+  // Analytics
+  viewCount         Int       @default(0)
+  salesCount        Int       @default(0)
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -196,6 +205,19 @@ model CartItem {
   @@map("cart_items")
 }
 
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, productId])
+  @@map("wishlist_items")
+}
+
 model Favorite {
   id        String   @id @default(cuid())
   userId    String
@@ -207,6 +229,29 @@ model Favorite {
   
   @@unique([userId, productId])
   @@map("favorites")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  rating    Int      // 1-5 stars
+  title     String?
+  comment   String?
+  isVerified Boolean @default(false) // Verified purchase
+  isApproved Boolean @default(false) // Admin approval
+  
+  // Helpful votes
+  helpfulCount Int @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, productId])
+  @@map("reviews")
 }
 
 model Address {
@@ -240,19 +285,40 @@ model Address {
 model Order {
   id                String      @id @default(cuid())
   orderNumber       String      @unique
-  userId            String
-  user              User        @relation(fields: [userId], references: [id])
+  userId            String?     // Made optional for guest orders
+  user              User?       @relation(fields: [userId], references: [id])
   
   // Status
   status            OrderStatus @default(PENDING)
   paymentStatus     PaymentStatus @default(PENDING)
   fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
   
-  // Addresses
-  shippingAddressId String
-  shippingAddress   Address @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
-  billingAddressId  String
-  billingAddress    Address @relation("BillingAddress", fields: [billingAddressId], references: [id])
+  // Addresses - Made optional for flexible address handling
+  shippingAddressId String?
+  shippingAddress   Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddressId  String?
+  billingAddress    Address? @relation("BillingAddress", fields: [billingAddressId], references: [id])
+  
+  // Direct address fields for when address isn't saved
+  shippingFirstName String?
+  shippingLastName  String?
+  shippingEmail     String?
+  shippingPhone     String?
+  shippingAddress1  String?
+  shippingAddress2  String?
+  shippingCity      String?
+  shippingProvince  String?
+  shippingPostal    String?
+  shippingCountry   String?
+  
+  billingFirstName  String?
+  billingLastName   String?
+  billingAddress1   String?
+  billingAddress2   String?
+  billingCity       String?
+  billingProvince   String?
+  billingPostal     String?
+  billingCountry    String?
   
   // Pricing
   subtotal          Decimal
@@ -261,8 +327,13 @@ model Order {
   discountAmount    Decimal @default(0)
   total             Decimal
   
-  // Payment
-  stripePaymentIntentId String?
+  // Discount info
+  promoCode         String?
+  promoDiscount     Decimal @default(0)
+  
+  // Payment - Updated for Stripe
+  stripePaymentIntentId String? // This is perfect for Stripe integration
+  paymentMethod     String? // "credit_card", "paypal", etc.
   
   // Shipping
   shippingMethod    String?
@@ -270,6 +341,7 @@ model Order {
   trackingUrl       String?
   shippedAt         DateTime?
   deliveredAt       DateTime?
+  estimatedDelivery DateTime?
   
   // Items
   items             OrderItem[]
@@ -277,6 +349,14 @@ model Order {
   // Notes
   customerNotes     String?
   adminNotes        String?
+  
+  // Email notifications
+  confirmationSent  Boolean @default(false)
+  shippingSent      Boolean @default(false)
+  deliverySent      Boolean @default(false)
+  
+  // Guest order support - ADD THIS FIELD
+  isGuest           Boolean @default(false)
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -291,6 +371,11 @@ model OrderItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
   
+  // Product details at time of order
+  productName  String  // Store product name in case product is deleted
+  productSku   String? // Store SKU
+  productImage String? // Store primary image URL
+  
   quantity  Int
   price     Decimal // Price at time of order
   total     Decimal
@@ -298,6 +383,122 @@ model OrderItem {
   createdAt DateTime @default(now())
 
   @@map("order_items")
+}
+
+model PromoCode {
+  id                String      @id @default(cuid())
+  code              String      @unique
+  description       String?
+  
+  // Discount type and amount
+  discountType      DiscountType // PERCENTAGE, FIXED_AMOUNT, FREE_SHIPPING
+  discountValue     Decimal     // Percentage (0-100) or dollar amount
+  
+  // Usage limits
+  usageLimit        Int?        // Max total uses
+  usageCount        Int         @default(0)
+  usageLimitPerUser Int?        // Max uses per customer
+  
+  // Minimum requirements
+  minimumAmount     Decimal?    // Minimum order amount
+  
+  // Validity
+  startsAt          DateTime?
+  expiresAt         DateTime?
+  isActive          Boolean     @default(true)
+  
+  // Product/category restrictions
+  applicableProducts String?    // JSON array of product IDs
+  applicableCategories String?  // JSON array of category IDs
+  
+  usages            PromoCodeUsage[]
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@map("promo_codes")
+}
+
+model PromoCodeUsage {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId     String?
+  
+  discountAmount Decimal
+  
+  createdAt   DateTime  @default(now())
+  
+  @@unique([promoCodeId, userId, orderId])
+  @@map("promo_code_usage")
+}
+
+model ShippingZone {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  countries   String         // JSON array of country codes
+  provinces   String?        // JSON array of province codes (for Canada)
+  
+  methods     ShippingMethod[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("shipping_zones")
+}
+
+model ShippingMethod {
+  id              String       @id @default(cuid())
+  zoneId          String
+  zone            ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  
+  name            String       // "Standard Shipping", "Express"
+  description     String?
+  price           Decimal
+  freeThreshold   Decimal?     // Free shipping over this amount
+  estimatedDays   String?      // "3-5 business days"
+  isActive        Boolean      @default(true)
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("shipping_methods")
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  subject     String
+  htmlContent String
+  textContent String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String?
+  message   String
+  
+  isRead    Boolean  @default(false)
+  isReplied Boolean  @default(false)
+  
+  // Additional context
+  userAgent String?
+  ipAddress String?
+  
+  createdAt DateTime @default(now())
+
+  @@map("contact_submissions")
 }
 
 // NextAuth required models
@@ -349,6 +550,10 @@ enum Role {
 enum TeslaModel {
   MODEL_3
   MODEL_Y
+  MODEL_S
+  MODEL_X
+  CYBERTRUCK
+  ROADSTER
 }
 
 enum OrderStatus {
@@ -366,10 +571,17 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+  PARTIALLY_REFUNDED
 }
 
 enum FulfillmentStatus {
   UNFULFILLED
   PARTIALLY_FULFILLED
   FULFILLED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
 }

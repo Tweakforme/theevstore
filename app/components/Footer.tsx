@@ -72,7 +72,7 @@ const PremiumFooter = () => {
               <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto lg:min-w-[400px]">
                 <input
                   type="email"
-                  placeholder="Enter your email address"
+                  placeholder="Enter your email"
                   className="flex-1 px-6 py-4 rounded-xl border-0 bg-white/10 backdrop-blur-sm text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white/30"
                 />
                 <button className="px-8 py-4 bg-white text-blue-700 font-semibold rounded-xl hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center">

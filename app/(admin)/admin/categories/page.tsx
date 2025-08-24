@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, FolderTree, Save, X, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react";
-import TeslaCategoryAutoSetup from './TeslaCategoryAutoSetup';
+import { Plus, Edit, Trash2, FolderTree, Save, X, Eye, EyeOff, ChevronDown, ChevronRight, Check } from "lucide-react";
 
 interface Category {
   id: string;
@@ -25,9 +24,12 @@ const CategoryManager = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    parentId: null as string | null,
     isActive: true
   });
 
@@ -96,9 +98,150 @@ const CategoryManager = () => {
     setExpandedCategories(newExpanded);
   };
 
+  // Get categories that can be parents (up to level 2, since max is level 3)
+  const getPotentialParents = () => {
+    return categories.filter(cat => cat.level <= 2).sort((a, b) => {
+      // Sort by level first, then by name
+      if (a.level !== b.level) return a.level - b.level;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  // Calculate what level the new category would be
+  const getNewCategoryLevel = (parentId: string | null) => {
+    if (!parentId) return 1; // Root category
+    const parent = categories.find(cat => cat.id === parentId);
+    return parent ? parent.level + 1 : 1;
+  };
+
+  // Format category name with indentation for dropdown
+  const formatCategoryForDropdown = (category: Category) => {
+    const indent = '  '.repeat(category.level - 1);
+    const levelLabel = category.level === 1 ? '[Root]' : category.level === 2 ? '[Main]' : '[Sub]';
+    return `${indent}${levelLabel} ${category.name}`;
+  };
+  const getAllCategoryIds = (cats: Category[]): string[] => {
+    const ids: string[] = [];
+    cats.forEach(cat => {
+      ids.push(cat.id);
+      if (cat.children && cat.children.length > 0) {
+        ids.push(...getAllCategoryIds(cat.children));
+      }
+    });
+    return ids;
+  };
+
+  // Handle individual category selection
+  const handleCategorySelect = (categoryId: string, checked: boolean) => {
+    const newSelected = new Set(selectedCategories);
+    if (checked) {
+      newSelected.add(categoryId);
+    } else {
+      newSelected.delete(categoryId);
+    }
+    setSelectedCategories(newSelected);
+  };
+
+  // Handle select all functionality
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = getAllCategoryIds(hierarchicalCategories);
+      setSelectedCategories(new Set(allIds));
+    } else {
+      setSelectedCategories(new Set());
+    }
+  };
+
+  // Check if all categories are selected
+  const isAllSelected = () => {
+    const allIds = getAllCategoryIds(hierarchicalCategories);
+    return allIds.length > 0 && allIds.every(id => selectedCategories.has(id));
+  };
+
+  // Check if some (but not all) categories are selected
+  const isIndeterminate = () => {
+    const allIds = getAllCategoryIds(hierarchicalCategories);
+    const selectedCount = allIds.filter(id => selectedCategories.has(id)).length;
+    return selectedCount > 0 && selectedCount < allIds.length;
+  };
+
+  // Bulk delete functionality
+  const handleBulkDelete = async () => {
+    if (selectedCategories.size === 0) return;
+
+    const selectedArray = Array.from(selectedCategories);
+    const categoryNames = selectedArray.map(id => 
+      categories.find(cat => cat.id === id)?.name
+    ).filter(Boolean);
+
+    if (!confirm(
+      `Are you sure you want to delete ${selectedCategories.size} categories?\n\n` +
+      `Categories to delete:\n${categoryNames.join('\n')}\n\n` +
+      `This action cannot be undone.`
+    )) return;
+
+    setBulkDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    try {
+      // Delete categories one by one to handle individual errors
+      for (const categoryId of selectedArray) {
+        try {
+          const response = await fetch(`/api/categories/${categoryId}`, {
+            method: 'DELETE'
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            const result = await response.json();
+            errorCount++;
+            const categoryName = categories.find(cat => cat.id === categoryId)?.name || 'Unknown';
+            errors.push(`${categoryName}: ${result.error}`);
+          }
+        } catch (error) {
+          errorCount++;
+          const categoryName = categories.find(cat => cat.id === categoryId)?.name || 'Unknown';
+          errors.push(`${categoryName}: Network error`);
+        }
+      }
+
+      // Show results
+      if (successCount > 0) {
+        await fetchCategories(); // Refresh the list
+        setSelectedCategories(new Set()); // Clear selection
+      }
+
+      if (errorCount === 0) {
+        alert(`Successfully deleted ${successCount} categories!`);
+      } else {
+        alert(
+          `Bulk delete completed:\n` +
+          `✓ Successfully deleted: ${successCount} categories\n` +
+          `✗ Failed to delete: ${errorCount} categories\n\n` +
+          `Errors:\n${errors.join('\n')}`
+        );
+      }
+    } catch (error) {
+      console.error('Error during bulk delete:', error);
+      alert('An unexpected error occurred during bulk delete');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       alert('Category name is required');
+      return;
+    }
+
+    // Validate hierarchy depth
+    const newLevel = getNewCategoryLevel(formData.parentId);
+    if (newLevel > 3) {
+      alert('Maximum category depth is 3 levels (Root → Main → Sub)');
       return;
     }
     
@@ -106,10 +249,17 @@ const CategoryManager = () => {
       const url = editingCategory ? `/api/categories/${editingCategory.id}` : '/api/categories';
       const method = editingCategory ? 'PUT' : 'POST';
       
+      // Prepare data with hierarchy information
+      const submitData = {
+        ...formData,
+        level: newLevel,
+        parentId: formData.parentId || null
+      };
+      
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       });
 
       const result = await response.json();
@@ -131,6 +281,7 @@ const CategoryManager = () => {
     setFormData({
       name: category.name,
       description: category.description || '',
+      parentId: category.parentId,
       isActive: category.isActive
     });
     setShowAddForm(true);
@@ -174,24 +325,33 @@ const CategoryManager = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', isActive: true });
+    setFormData({ name: '', description: '', parentId: null, isActive: true });
     setEditingCategory(null);
     setShowAddForm(false);
   };
 
-  // Render category row with proper indentation
+  // Render category row with proper indentation and selection
   const renderCategoryRow = (category: Category, level: number = 0): JSX.Element[] => {
     const hasChildren = category.children && category.children.length > 0;
     const isExpanded = expandedCategories.has(category.id);
+    const isSelected = selectedCategories.has(category.id);
     const indent = level * 24; // 24px per level
 
     const rows: JSX.Element[] = [];
 
     // Main category row
     rows.push(
-      <tr key={category.id} className="hover:bg-gray-50">
+      <tr key={category.id} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
         <td className="px-6 py-4">
           <div className="flex items-center" style={{ paddingLeft: `${indent}px` }}>
+            {/* Selection checkbox */}
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => handleCategorySelect(category.id, e.target.checked)}
+              className="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            
             {hasChildren ? (
               <button
                 onClick={() => toggleExpanded(category.id)}
@@ -308,9 +468,6 @@ const CategoryManager = () => {
         <p className="text-gray-600">Manage your Tesla parts categories and organization</p>
       </div>
 
-      {/* Auto-setup component - only show if no categories */}
-      <TeslaCategoryAutoSetup />
-
       {/* Category Statistics */}
       {categories.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -333,11 +490,11 @@ const CategoryManager = () => {
             <div className="text-sm text-purple-700">Subcategories</div>
           </div>
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-gray-900">
-              {categories.reduce((sum, c) => sum + (c.productCount || 0), 0)}
-            </div>
-            <div className="text-sm text-gray-700">Total Products</div>
-          </div>
+  <div className="text-2xl font-bold text-gray-900">
+    {categories.reduce((sum, c) => sum + (c.directProductCount || 0), 0)}
+  </div>
+  <div className="text-sm text-gray-700">Total Products</div>
+</div>
         </div>
       )}
 
@@ -357,14 +514,50 @@ const CategoryManager = () => {
           </div>
         </div>
         
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Category</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* Bulk Delete Button */}
+          {selectedCategories.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:bg-red-400 flex items-center space-x-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>
+                {bulkDeleting ? 'Deleting...' : `Delete ${selectedCategories.size} Selected`}
+              </span>
+            </button>
+          )}
+          
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Category</span>
+          </button>
+        </div>
       </div>
+
+      {/* Selection Info */}
+      {selectedCategories.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Check className="h-5 w-5 text-blue-600" />
+              <span className="text-blue-800 font-medium">
+                {selectedCategories.size} categories selected
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedCategories(new Set())}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       {showAddForm && (
@@ -391,6 +584,41 @@ const CategoryManager = () => {
                 placeholder="e.g., Model 3 - Interior"
                 required
               />
+            </div>
+
+            {/* Parent Category Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Parent Category
+              </label>
+              <select
+                value={formData.parentId || ''}
+                onChange={(e) => setFormData({...formData, parentId: e.target.value || null})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Root Category (Level 1)</option>
+                {getPotentialParents()
+                  .filter(cat => !editingCategory || cat.id !== editingCategory.id) // Prevent self-selection
+                  .map(cat => (
+                    <option 
+                      key={cat.id} 
+                      value={cat.id}
+                      disabled={cat.level >= 3} // Prevent creating level 4+
+                    >
+                      {formatCategoryForDropdown(cat)}
+                    </option>
+                  ))}
+              </select>
+              {formData.parentId && (
+                <p className="text-sm text-gray-500 mt-1">
+                  This will be a Level {getNewCategoryLevel(formData.parentId)} category
+                </p>
+              )}
+              {!formData.parentId && (
+                <p className="text-sm text-gray-500 mt-1">
+                  This will be a Root (Level 1) category
+                </p>
+              )}
             </div>
             
             <div>
@@ -445,7 +673,18 @@ const CategoryManager = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category Hierarchy
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected()}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isIndeterminate();
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Category Hierarchy</span>
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Products

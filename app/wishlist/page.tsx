@@ -419,7 +419,7 @@ const ModernWishlistPage = () => {
                           </button>
                           
                           <Link
-                            href={`/product/${item.product.slug}`}
+                            href={`/products/${item.product.slug}`}
                             className="p-3 bg-white/90 backdrop-blur rounded-full hover:bg-white shadow-lg transition-colors"
                             title="Quick view"
                           >
@@ -455,7 +455,7 @@ const ModernWishlistPage = () => {
                         {/* Product Name */}
                         <h3 className="font-bold text-gray-900 mb-3 text-lg line-clamp-2 leading-tight">
                           <Link 
-                            href={`/product/${item.product.slug}`}
+                            href={`/products/${item.product.slug}`}
                             className="hover:text-blue-600 transition-colors"
                           >
                             {item.product.name}
@@ -507,7 +507,7 @@ const ModernWishlistPage = () => {
                           </button>
                           
                           <Link
-                            href={`/product/${item.product.slug}`}
+                            href={`/products/${item.product.slug}`}
                             className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors text-center block font-medium"
                           >
                             View Details
@@ -586,7 +586,7 @@ const ModernWishlistPage = () => {
                           {/* Product Name */}
                           <h3 className="font-bold text-gray-900 mb-2 text-xl">
                             <Link 
-                              href={`/product/${item.product.slug}`}
+                              href={`/products/${item.product.slug}`}
                               className="hover:text-blue-600 transition-colors"
                             >
                               {item.product.name}
@@ -645,7 +645,7 @@ const ModernWishlistPage = () => {
                             </button>
 
                             <Link
-                              href={`/product/${item.product.slug}`}
+                              href={`/products/${item.product.slug}`}
                               className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
                               title="View details"
                             >

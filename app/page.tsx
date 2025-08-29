@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import useSWR from "swr";
 import { fetcher } from "./lib/fetcher";
 import Hero from "./components/Hero";
@@ -135,6 +135,28 @@ const TeslaPartsHomepage = () => {
   const [cartCount, setCartCount] = useState(0); // kept for header badge if you use it
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
+  // Load existing wishlist items on component mount
+  useEffect(() => {
+    fetchWishlistForFavorites();
+  }, []);
+
+  const fetchWishlistForFavorites = async () => {
+    try {
+      const response = await fetch('/api/wishlist');
+      const data = await response.json();
+      
+      if (data.items) {
+        interface WishlistItem {
+          product: Product;
+        }
+        const favoriteIds = new Set<string>(data.items.map((item: WishlistItem) => item.product.id));
+        setFavorites(favoriteIds);
+      }
+    } catch (error) {
+      console.error('Error fetching wishlist for favorites:', error);
+    }
+  };
+
   /* ------------ Cart / favorites ------------ */
   const addToCart = async (productId: string) => {
     try {
@@ -154,12 +176,44 @@ const TeslaPartsHomepage = () => {
     }
   };
 
-  const toggleFavorite = (id: string) =>
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  // FIXED: toggleFavorite now actually calls your wishlist API
+  const toggleFavorite = async (productId: string) => {
+    try {
+      const response = await fetch('/api/wishlist/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.action === 'added') {
+          setFavorites(prev => {
+            const newSet = new Set(prev);
+            newSet.add(productId);
+            return newSet;
+          });
+        } else if (data.action === 'removed') {
+          setFavorites(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+        }
+      } else {
+        const error = await response.json();
+        if (error.error === 'Authentication required') {
+          alert('Please log in to add items to your wishlist');
+        } else {
+          alert('Failed to update wishlist. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      alert('Network error. Please try again.');
+    }
+  };
 
   const model3Count = teslaModels.find((m) => m.id === "MODEL_3")?.count || 0;
   const modelYCount = teslaModels.find((m) => m.id === "MODEL_Y")?.count || 0;

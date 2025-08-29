@@ -202,14 +202,21 @@ const handleAddToCart = async () => {
 };
 
 // Add this helper function to handle guest cart
-const handleGuestCart = (product: any, quantity: number) => {
+const handleGuestCart = (product: Product, quantity: number) => {
   try {
     // Get existing guest cart from localStorage
     const existingCart = localStorage.getItem('guestCart');
-    let cartItems = existingCart ? JSON.parse(existingCart) : [];
+    interface GuestCartItem {
+      productId: string;
+      name: string;
+      price: number;
+      quantity: number;
+      addedAt: string;
+    }
+    const cartItems: GuestCartItem[] = existingCart ? JSON.parse(existingCart) : [];
 
     // Check if item already exists
-    const existingItemIndex = cartItems.findIndex((item: any) => item.productId === product.id);
+    const existingItemIndex = cartItems.findIndex((item: GuestCartItem) => item.productId === product.id);
 
     if (existingItemIndex >= 0) {
       // Update quantity
@@ -229,7 +236,7 @@ const handleGuestCart = (product: any, quantity: number) => {
     localStorage.setItem('guestCart', JSON.stringify(cartItems));
 
     // Update cart count in UI
-    const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    const totalItems = cartItems.reduce((sum: number, item: GuestCartItem) => sum + item.quantity, 0);
     window.dispatchEvent(new CustomEvent('cartUpdated', { 
       detail: { count: totalItems, isGuest: true } 
     }));

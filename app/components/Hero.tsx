@@ -136,7 +136,7 @@ function TripleHero({
       key: "service",
       title: "Service + Install",
       tagline: "Pro technicians • Guaranteed fit",
-      kpi: "Same‑day slots",
+      kpi: "Contact Us for Availability",
       cta: { label: "Book Appointment", href: "/service" },
       img: "/images/hero-3.jpg",
       accent: "from-amber-400 to-rose-500",
@@ -264,3 +264,4 @@ const Hero: React.FC<HeroProps> = ({ model3Count, modelYCount }) => {
 };
 
 export default Hero;
+

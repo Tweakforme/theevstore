@@ -16,6 +16,7 @@ import {
   Heart,
   MapPin,
   ChevronRight,
+  Shield, // Added for admin icon
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
@@ -84,69 +85,72 @@ const EnhancedHeader: React.FC = () => {
 
   /* ------------ Effects ------------ */
 
-  // Cart count loader (resilient to non-JSON responses)
-  useEffect(() => {
-    const loadCartCount = async () => {
+// Cart count loader (resilient to non-JSON responses)
+useEffect(() => {
+  const loadCartCount = async () => {
+    try {
+      const res = await fetch("/api/cart", { credentials: "include" });
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        // probably got redirected to HTML; treat as empty cart
+        setCartCount(0);
+        return;
+      }
+      const data = (await res.json()) as { items?: Array<{ quantity: number }> };
+      const count = data.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) ?? 0;
+      setCartCount(count);
+    } catch {
+      // Try guest cart fallback
       try {
-        const res = await fetch("/api/cart", { credentials: "include" });
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) {
-          // probably got redirected to HTML; treat as empty cart
-          setCartCount(0);
+        const guest = localStorage.getItem("guestCart");
+        if (guest) {
+          const parsed: Array<{ quantity: number }> = JSON.parse(guest);
+          const count = parsed.reduce((sum, item) => sum + (item.quantity || 0), 0);
+          setCartCount(count);
           return;
         }
-        const data = (await res.json()) as { items?: Array<{ quantity: number }> };
-        const count = data.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) ?? 0;
-        setCartCount(count);
       } catch {
-        // Try guest cart fallback
-        try {
-          const guest = localStorage.getItem("guestCart");
-          if (guest) {
-            const parsed: Array<{ quantity: number }> = JSON.parse(guest);
-            const count = parsed.reduce((sum, item) => sum + (item.quantity || 0), 0);
-            setCartCount(count);
-            return;
-          }
-        } catch {
-          /* ignore */
-        }
-        setCartCount(0);
+        /* ignore */
       }
-    };
+      setCartCount(0);
+    }
+  };
 
-    loadCartCount();
-  }, [session]);
+  loadCartCount();
+}, [session]);
+
 
   // Listen for `cartUpdated` custom events
-  useEffect(() => {
-    const handleCartUpdate = (event: Event) => {
-      const detail = (event as CustomEvent<CartUpdatedDetail>).detail;
-      setCartCount(detail?.count ?? 0);
-    };
-    window.addEventListener("cartUpdated", handleCartUpdate as EventListener);
-    return () => window.removeEventListener("cartUpdated", handleCartUpdate as EventListener);
-  }, []);
+useEffect(() => {
+  const handleCartUpdate = (event: Event) => {
+    const detail = (event as CustomEvent<CartUpdatedDetail>).detail;
+    console.log('Cart updated event received:', detail); // Debug log
+    setCartCount(detail?.count ?? 0);
+  };
 
-  // Scroll style
-  useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 10);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Close dropdowns/search when clicking outside
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (!navRef.current) return;
-      if (!navRef.current.contains(e.target as Node)) {
-        setActiveDropdown(null);
-        setIsSearchOpen(false);
+  // Listen for custom cart events
+  window.addEventListener("cartUpdated", handleCartUpdate as EventListener);
+  
+  // 🔥 NEW: Also listen for storage changes (for guest cart sync across tabs)
+  const handleStorageChange = (e: StorageEvent) => {
+    if (e.key === 'guestCart' && e.newValue) {
+      try {
+        const cartItems = JSON.parse(e.newValue);
+        const count = cartItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        setCartCount(count);
+      } catch (error) {
+        console.error('Error parsing guest cart from storage:', error);
       }
-    };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, []);
+    }
+  };
+  
+  window.addEventListener('storage', handleStorageChange);
+
+  return () => {
+    window.removeEventListener("cartUpdated", handleCartUpdate as EventListener);
+    window.removeEventListener('storage', handleStorageChange);
+  };
+}, []);
 
   /* ------------ Handlers ------------ */
 
@@ -160,6 +164,107 @@ const EnhancedHeader: React.FC = () => {
     if (!q) return;
     setIsSearchOpen(false);
     router.push(`/search?q=${encodeURIComponent(q)}`);
+  };
+
+  // 🔥 NEW: Account button based on user role
+  const renderAccountButton = () => {
+    if (!session) {
+      // Not logged in
+      return (
+        <Link
+          href="/auth/login"
+          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+          aria-label="Sign In"
+        >
+          <User className="h-5 w-5" />
+        </Link>
+      );
+    }
+
+    if (session.user?.role === 'ADMIN') {
+      // Admin user - red theme with shield icon
+      return (
+        <Link
+          href="/admin"
+          className="relative p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+          aria-label="Admin Panel"
+          title={`Admin: ${session.user?.name}`}
+        >
+          <Shield className="h-5 w-5" />
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center">
+            A
+          </span>
+        </Link>
+      );
+    }
+
+    // Regular customer
+    return (
+      <Link
+        href="/account"
+        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+        aria-label="My Account"
+        title={`Account: ${session.user?.name}`}
+      >
+        <User className="h-5 w-5" />
+      </Link>
+    );
+  };
+
+  // 🔥 NEW: Mobile account card based on user role
+  const renderMobileAccountCard = () => {
+    if (!session) {
+      return (
+        <Link
+          href="/auth/login"
+          className="flex items-center gap-3"
+          onClick={() => setIsMenuOpen(false)}
+        >
+          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+            <User className="h-5 w-5 text-gray-600" />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">Sign In</div>
+            <div className="text-sm text-gray-500">Access your account</div>
+          </div>
+        </Link>
+      );
+    }
+
+    if (session.user?.role === 'ADMIN') {
+      return (
+        <Link
+          href="/admin"
+          className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-1"
+          onClick={() => setIsMenuOpen(false)}
+        >
+          <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-full flex items-center justify-center">
+            <Shield className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900 flex items-center gap-2">
+              <span>{session.user?.name}</span>
+              <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold">
+                ADMIN
+              </span>
+            </div>
+            <div className="text-sm text-red-600 font-medium">Administrator Panel</div>
+          </div>
+        </Link>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+          <User className="h-5 w-5 text-blue-600" />
+        </div>
+        <div>
+          <div className="font-medium text-gray-900">{session.user?.name}</div>
+          <div className="text-sm text-gray-500">Tesla Parts Member</div>
+        </div>
+      </div>
+    );
   };
 
   /* ------------ Render ------------ */
@@ -406,14 +511,8 @@ const EnhancedHeader: React.FC = () => {
                 <Heart className="h-5 w-5" />
               </Link>
 
-              {/* Account */}
-              <Link
-                href={session ? "/account" : "/auth/login"}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg"
-                aria-label="Account"
-              >
-                <User className="h-5 w-5" />
-              </Link>
+              {/* 🔥 FIXED: Account button with role detection */}
+              {renderAccountButton()}
 
               {/* Cart */}
               <Link
@@ -500,33 +599,9 @@ const EnhancedHeader: React.FC = () => {
             {/* Mobile nav content */}
             <div className="flex-1 overflow-y-auto p-2">
               <nav className="space-y-2">
-                {/* Account card */}
+                {/* 🔥 FIXED: Account card with role detection */}
                 <div className="bg-gray-50 rounded-lg p-4">
-                  {session ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{session.user?.name}</div>
-                        <div className="text-sm text-gray-500">Tesla Parts Member</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <Link
-                      href="/auth/login"
-                      className="flex items-center gap-3"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">Sign In</div>
-                        <div className="text-sm text-gray-500">Access your account</div>
-                      </div>
-                    </Link>
-                  )}
+                  {renderMobileAccountCard()}
                 </div>
 
                 {/* Model 3 accordion */}
